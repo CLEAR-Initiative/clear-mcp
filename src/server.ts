@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { Config } from "./config.js";
 import type { ToolError } from "./errors.js";
+import { graphql } from "./gql/index.js";
 import { createLogger, silentLogger, type Logger } from "./logger.js";
 import { createLocationIndex } from "./location-index.js";
 import { curatedTools } from "./tools/index.js";
@@ -37,7 +38,7 @@ export interface ClearMcpServer {
   selfCheck(): Promise<SelfCheckResult>;
 }
 
-export const SELF_CHECK_DOCUMENT = /* GraphQL */ `
+export const SELF_CHECK_DOCUMENT = graphql(/* GraphQL */ `
   query ClearSelfCheck {
     me {
       id
@@ -45,7 +46,7 @@ export const SELF_CHECK_DOCUMENT = /* GraphQL */ `
       isActive
     }
   }
-`;
+`);
 
 /**
  * Build the McpServer with every Curated tool registered. Transport-agnostic:
@@ -75,12 +76,10 @@ export function createServer(opts: CreateServerOptions): ClearMcpServer {
   }
 
   async function selfCheck(): Promise<SelfCheckResult> {
-    const res = await upstream.request<{
-      me: { id: string; role: string | null; isActive: boolean | null } | null;
-    }>({ document: SELF_CHECK_DOCUMENT, operationName: "ClearSelfCheck", toolName: "self-check" });
+    const res = await upstream.request({ document: SELF_CHECK_DOCUMENT, toolName: "self-check" });
     const outcome: SelfCheckResult = !res.ok
       ? { ok: false, error: res.error }
-      : res.data.me === null
+      : !res.data.me
         ? {
             ok: false,
             error: {
@@ -88,7 +87,14 @@ export function createServer(opts: CreateServerOptions): ClearMcpServer {
               message: "clear-api did not recognise the configured CLEAR_API_KEY (me is null).",
             },
           }
-        : { ok: true, caller: res.data.me };
+        : {
+            ok: true,
+            caller: {
+              id: res.data.me.id,
+              role: res.data.me.role ?? null,
+              isActive: res.data.me.isActive ?? null,
+            },
+          };
 
     if (outcome.ok) {
       log.info({ caller: outcome.caller, apiUrl: config.apiUrl }, "self-check ok");

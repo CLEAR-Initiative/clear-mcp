@@ -8,7 +8,10 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { Writable } from "node:stream";
+import { buildSchema, parse, validate } from "graphql";
 import pino from "pino";
 import { parseConfig } from "../../src/config.js";
 import { createServer, type ClearMcpServer } from "../../src/server.js";
@@ -41,6 +44,33 @@ export interface FixtureFetch {
   on(operationName: string, responder: Responder | FixtureResponse): void;
 }
 
+/** The committed clear-api SDL every outgoing document is validated against. */
+export const SNAPSHOT_SCHEMA = buildSchema(
+  readFileSync(resolve(import.meta.dirname, "..", "..", "schema.graphql"), "utf8"),
+);
+
+/**
+ * Throw if a document would not validate against the snapshot — a drifted
+ * selection set fails here, in the unit suite, before it fails on a server.
+ */
+export function assertValidDocument(query: string, operationName?: string): void {
+  let doc;
+  try {
+    doc = parse(query);
+  } catch (err) {
+    throw new Error(`Document for "${operationName ?? "?"}" does not parse: ${(err as Error).message}`, {
+      cause: err,
+    });
+  }
+  const errors = validate(SNAPSHOT_SCHEMA, doc);
+  if (errors.length > 0) {
+    throw new Error(
+      `Document for "${operationName ?? "?"}" is invalid against schema.graphql:\n` +
+        errors.map((e) => `  - ${e.message}`).join("\n"),
+    );
+  }
+}
+
 export function createFixtureFetch(initial: Record<string, Responder | FixtureResponse> = {}): FixtureFetch {
   const responders = new Map<string, Responder>();
   const requests: RecordedRequest[] = [];
@@ -69,6 +99,7 @@ export function createFixtureFetch(initial: Record<string, Responder | FixtureRe
       variables: body.variables ?? {},
     };
     requests.push(recorded);
+    assertValidDocument(body.query, body.operationName);
 
     const responder = responders.get(body.operationName);
     if (!responder) {

@@ -1,24 +1,36 @@
 import { graphqlEndpoint, type Config } from "./config.js";
 import { ERROR_CODES, type ToolError } from "./errors.js";
+import type { TypedDocumentString } from "./gql/graphql.js";
 import type { Logger } from "./logger.js";
 import { USER_AGENT_PREFIX } from "./version.js";
 
 /** Outcome of one upstream request, normalised to a discriminated union. */
 export type UpstreamResult<T> = { ok: true; data: T } | { ok: false; error: ToolError };
 
-export interface UpstreamRequest {
-  /** The GraphQL document to send verbatim. */
-  document: string;
-  /** Must match the document's operation name; keys the test fixtures. */
-  operationName: string;
-  variables?: Record<string, unknown>;
+export interface UpstreamRequest<TData, TVariables> {
+  /**
+   * A codegen-typed document from `src/gql` (the tool's projection — no
+   * post-hoc field stripping) or, for the Escape hatch, a raw string.
+   */
+  document: TypedDocumentString<TData, TVariables> | string;
+  /** Defaults to the document's operation name; keys the test fixtures. */
+  operationName?: string;
+  variables?: TVariables;
   /** The tool issuing the request, sent in `User-Agent` for clear-api's logs. */
   toolName: string;
 }
 
 export interface Upstream {
-  request<T>(req: UpstreamRequest): Promise<UpstreamResult<T>>;
+  request<TData, TVariables = Record<string, never>>(
+    req: UpstreamRequest<TData, TVariables>,
+  ): Promise<UpstreamResult<TData>>;
   readonly endpoint: string;
+}
+
+/** First operation name in a document, or null for an anonymous operation. */
+export function operationNameOf(document: string): string | null {
+  const m = /\b(?:query|mutation|subscription)\s+([A-Za-z_][A-Za-z0-9_]*)/.exec(document);
+  return m?.[1] ?? null;
 }
 
 export type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
@@ -53,7 +65,11 @@ export function createUpstream(opts: {
   const { fetch, log, config } = opts;
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
-  async function request<T>(req: UpstreamRequest): Promise<UpstreamResult<T>> {
+  async function request<TData, TVariables>(
+    req: UpstreamRequest<TData, TVariables>,
+  ): Promise<UpstreamResult<TData>> {
+    const query = String(req.document);
+    const operationName = req.operationName ?? operationNameOf(query) ?? undefined;
     const headers: Record<string, string> = {
       authorization: `Bearer ${config.apiKey}`,
       "x-force-locale": config.locale,
@@ -61,11 +77,7 @@ export function createUpstream(opts: {
       accept: "application/json",
       "user-agent": `${USER_AGENT_PREFIX} (${req.toolName})`,
     };
-    const body = JSON.stringify({
-      query: req.document,
-      operationName: req.operationName,
-      variables: req.variables ?? {},
-    });
+    const body = JSON.stringify({ query, operationName, variables: req.variables ?? {} });
 
     const started = Date.now();
     let response: Response;
@@ -83,7 +95,7 @@ export function createUpstream(opts: {
         : err instanceof Error
           ? err.message
           : String(err);
-      log.error({ tool: req.toolName, op: req.operationName, err: message }, "upstream unreachable");
+      log.error({ tool: req.toolName, op: operationName, err: message }, "upstream unreachable");
       return {
         ok: false,
         error: {
@@ -99,7 +111,7 @@ export function createUpstream(opts: {
     if (!response.ok) {
       const text = await safeText(response);
       log.error(
-        { tool: req.toolName, op: req.operationName, status: response.status, elapsedMs },
+        { tool: req.toolName, op: operationName, status: response.status, elapsedMs },
         "upstream non-2xx",
       );
       return {
@@ -112,9 +124,9 @@ export function createUpstream(opts: {
       };
     }
 
-    let parsed: GraphQLResponseBody<T>;
+    let parsed: GraphQLResponseBody<TData>;
     try {
-      parsed = (await response.json()) as GraphQLResponseBody<T>;
+      parsed = (await response.json()) as GraphQLResponseBody<TData>;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return {
@@ -133,7 +145,7 @@ export function createUpstream(opts: {
       const code = typeof ext.code === "string" && ext.code ? ext.code : ERROR_CODES.UPSTREAM_ERROR;
       const error: ToolError = { code, message: first.message ?? "clear-api returned an error" };
       if (typeof ext.subCode === "string" && ext.subCode) error.subCode = ext.subCode;
-      log.warn({ tool: req.toolName, op: req.operationName, code, subCode: error.subCode, elapsedMs }, "upstream error");
+      log.warn({ tool: req.toolName, op: operationName, code, subCode: error.subCode, elapsedMs }, "upstream error");
       return { ok: false, error };
     }
 
@@ -147,7 +159,7 @@ export function createUpstream(opts: {
       };
     }
 
-    log.debug({ tool: req.toolName, op: req.operationName, elapsedMs }, "upstream ok");
+    log.debug({ tool: req.toolName, op: operationName, elapsedMs }, "upstream ok");
     return { ok: true, data: parsed.data };
   }
 

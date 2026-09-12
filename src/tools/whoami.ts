@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ERROR_CODES, fail, ok } from "../errors.js";
+import { graphql } from "../gql/index.js";
 import { defineTool } from "./types.js";
 
 /**
@@ -7,7 +8,7 @@ import { defineTool } from "./types.js";
  * is `requireAuth`, so an unauthenticated Caller surfaces as UNAUTHENTICATED
  * from the same round trip. One request covers identity + team scope.
  */
-export const WHOAMI_DOCUMENT = /* GraphQL */ `
+export const WHOAMI_DOCUMENT = graphql(/* GraphQL */ `
   query ClearWhoami {
     me {
       id
@@ -31,24 +32,7 @@ export const WHOAMI_DOCUMENT = /* GraphQL */ `
       }
     }
   }
-`;
-
-interface WhoamiData {
-  me: {
-    id: string;
-    name: string;
-    role: string | null;
-    language: string;
-    isActive: boolean | null;
-    defaultTeam: { id: string; name: string } | null;
-  } | null;
-  myTeams: Array<{
-    id: string;
-    name: string;
-    slug: string;
-    locations: Array<{ id: string; name: string; level: number }>;
-  }>;
-}
+`);
 
 const scopeLocation = z.object({
   id: z.string(),
@@ -87,11 +71,7 @@ export const whoamiTool = defineTool({
     apiUrl: z.string(),
   }),
   async run(_input, ctx) {
-    const res = await ctx.upstream.request<WhoamiData>({
-      document: WHOAMI_DOCUMENT,
-      operationName: "ClearWhoami",
-      toolName: ctx.toolName,
-    });
+    const res = await ctx.upstream.request({ document: WHOAMI_DOCUMENT, toolName: ctx.toolName });
     if (!res.ok) return fail(res.error);
 
     const { me, myTeams } = res.data;
@@ -111,7 +91,7 @@ export const whoamiTool = defineTool({
         isActive: me.isActive ?? null,
         defaultTeam: me.defaultTeam ?? null,
       },
-      teams: myTeams.map((t) => ({
+      teams: (myTeams ?? []).map((t) => ({
         id: t.id,
         name: t.name,
         slug: t.slug,

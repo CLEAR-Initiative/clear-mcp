@@ -1,4 +1,5 @@
 import type { ToolError } from "./errors.js";
+import { graphql } from "./gql/index.js";
 import type { Logger } from "./logger.js";
 import type { Upstream } from "./upstream.js";
 
@@ -9,7 +10,7 @@ import type { Upstream } from "./upstream.js";
  * Level ≥ 3 (L4 landmarks, `landmark-geocoded` points) is deliberately not
  * indexed. Never selects `geometry`, `children`, `parent` or `metadata`.
  */
-export const LOCATIONS_DOCUMENT = /* GraphQL */ `
+export const LOCATIONS_DOCUMENT = graphql(/* GraphQL */ `
   query ClearLocationIndex {
     countries: locations(level: 0) {
       ...IndexedLocation
@@ -28,7 +29,7 @@ export const LOCATIONS_DOCUMENT = /* GraphQL */ `
     pCode
     ancestorIds
   }
-`;
+`);
 
 export interface IndexedLocation {
   id: string;
@@ -36,12 +37,6 @@ export interface IndexedLocation {
   level: number;
   pCode: string | null;
   ancestorIds: string[];
-}
-
-interface LocationsData {
-  countries: IndexedLocation[];
-  states: IndexedLocation[];
-  districts: IndexedLocation[];
 }
 
 export interface LocationAncestor {
@@ -106,11 +101,7 @@ export function createLocationIndex(deps: { upstream: Upstream; log: Logger }): 
 
   async function load(toolName: string): Promise<ToolError | null> {
     const started = Date.now();
-    const res = await deps.upstream.request<LocationsData>({
-      document: LOCATIONS_DOCUMENT,
-      operationName: "ClearLocationIndex",
-      toolName,
-    });
+    const res = await deps.upstream.request({ document: LOCATIONS_DOCUMENT, toolName });
     if (!res.ok) return res.error;
 
     const rows = [...res.data.countries, ...res.data.states, ...res.data.districts];
