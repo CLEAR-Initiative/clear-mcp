@@ -239,6 +239,18 @@ export type ClearGetAlertQueryVariables = Exact<{
 
 export type ClearGetAlertQuery = { alert: { id: string, status: AlertStatus, createdAt: string, updatedAt: string, event: { id: string, severity: number | null, types: Array<string>, title: string | null, description: string | null, firstSignalCreatedAt: string, lastSignalCreatedAt: string, startedAt: string | null, originLocation: { id: string, name: string, level: number } | null, destinationLocation: { id: string, name: string, level: number } | null, generalLocation: { id: string, name: string, level: number } | null } } | null };
 
+export type ClearGetDatapointsQueryVariables = Exact<{
+  locationId?: string | null | undefined;
+  windowKind: string;
+  windowStart: string;
+  windowEnd: string;
+  schemaVersion?: string | null | undefined;
+  asOf?: string | null | undefined;
+}>;
+
+
+export type ClearGetDatapointsQuery = { aggregatedDatapoint: { id: string, locationId: string | null, windowKind: string, windowStart: string, windowEnd: string, schemaVersion: string, computedAt: string, onDemand: boolean, reportCount: number, dataQualityScore: number, contributingReportIds: Array<string>, oldestSourceAt: string, newestSourceAt: string, data: unknown } | null };
+
 export type ClearGetEventQueryVariables = Exact<{
   id: string;
 }>;
@@ -488,6 +500,33 @@ export const ClearGetAlertDocument = new TypedDocumentString(`
   }
 }
     `) as unknown as TypedDocumentString<ClearGetAlertQuery, ClearGetAlertQueryVariables>;
+export const ClearGetDatapointsDocument = new TypedDocumentString(`
+    query ClearGetDatapoints($locationId: String, $windowKind: String!, $windowStart: DateTime!, $windowEnd: DateTime!, $schemaVersion: String, $asOf: DateTime) {
+  aggregatedDatapoint(
+    locationId: $locationId
+    windowKind: $windowKind
+    windowStart: $windowStart
+    windowEnd: $windowEnd
+    schemaVersion: $schemaVersion
+    asOf: $asOf
+  ) {
+    id
+    locationId
+    windowKind
+    windowStart
+    windowEnd
+    schemaVersion
+    computedAt
+    onDemand
+    reportCount
+    dataQualityScore
+    contributingReportIds
+    oldestSourceAt
+    newestSourceAt
+    data
+  }
+}
+    `) as unknown as TypedDocumentString<ClearGetDatapointsQuery, ClearGetDatapointsQueryVariables>;
 export const ClearGetEventDocument = new TypedDocumentString(`
     query ClearGetEvent($id: String!) {
   event(id: $id) {

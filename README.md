@@ -93,6 +93,7 @@ Once published (V1.1) this becomes `"command": "npx", "args": ["-y", "@clear-ini
 | `clear_search_knowledge_base` | Retrieve | Hybrid dense + BM25 search over ingested reports; citable hits with untruncated passages (`limit` 1–20, default 5) |
 | `clear_list_crises` / `clear_get_crisis` | Analyse | Curated crises with LLM title/summary; get adds scenarios and NRC SAF needs |
 | `clear_get_situation_analysis` | Analyse | A country's situation-analysis snapshot, filtered to `sections`; `history: true` for the yearly series |
+| `clear_get_datapoints` | Analyse | Aggregated quantitative figures for a location and window (yearly by default) with data-quality scores and source report ids |
 | `clear_list_figures` | Analyse | Charts/maps/tables extracted from reports, cursor-paged, with transcription |
 
 List tools take `limit` (clamped to 1–25, default 10) and `offset`, and return
