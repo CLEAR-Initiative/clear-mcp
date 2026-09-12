@@ -7,6 +7,7 @@ import { getEventTool } from "./get-event.js";
 import { getSignalTool } from "./get-signal.js";
 import { listAlertsTool } from "./list-alerts.js";
 import { listEventsTool } from "./list-events.js";
+import { listFiguresTool } from "./list-figures.js";
 import { listSignalsTool } from "./list-signals.js";
 import { searchKnowledgeBaseTool } from "./search-knowledge-base.js";
 import { getSituationAnalysisTool } from "./situation-analysis.js";
@@ -42,5 +43,6 @@ export function curatedTools(deps: ToolDeps): ToolDefinition<any, any>[] {
     listCrisesTool,
     getCrisisTool,
     getSituationAnalysisTool,
+    listFiguresTool,
   ];
 }

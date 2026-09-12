@@ -90,6 +90,10 @@ Once published (V1.1) this becomes `"command": "npx", "args": ["-y", "@clear-ini
 | `clear_list_signals` | Monitor | Paginated signals with source, url, location, truncated text |
 | `clear_count` | Monitor | Totals for signals/events/alerts, grouped by type / severity / day / week / month |
 | `clear_get_alert` / `clear_get_event` / `clear_get_signal` | Monitor | One row by id, untruncated; event carries alert ids and up to 50 signal references |
+| `clear_search_knowledge_base` | Retrieve | Hybrid dense + BM25 search over ingested reports; citable hits with untruncated passages (`limit` 1–20, default 5) |
+| `clear_list_crises` / `clear_get_crisis` | Analyse | Curated crises with LLM title/summary; get adds scenarios and NRC SAF needs |
+| `clear_get_situation_analysis` | Analyse | A country's situation-analysis snapshot, filtered to `sections`; `history: true` for the yearly series |
+| `clear_list_figures` | Analyse | Charts/maps/tables extracted from reports, cursor-paged, with transcription |
 
 List tools take `limit` (clamped to 1–25, default 10) and `offset`, and return
 `{ items, totalCount, hasMore, limit, offset }`; text in list items is cut at 500 characters
