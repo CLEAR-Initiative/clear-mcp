@@ -36,20 +36,26 @@ jobs:
       - name: Resolve merged PR -> Tickets
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           REPO_URL: ${{ github.event.pull_request.base.repo.html_url }}
         run: |
           set -euo pipefail
+          # After a squash-merge with branch deletion the PR's head commit is
+          # not on any branch in the checkout; GitHub still serves it as
+          # refs/pull/N/head. Fetch it so the rollup scan below can walk it.
+          git fetch --quiet origin "+refs/pull/${PR_NUMBER}/head:refs/remotes/pr/${PR_NUMBER}" || true
           # This PR, plus any child feature PRs referenced from a Rollup PR's
           # commit log (a Rollup PR promotes already-merged work along the chain,
           # so its own URL is on no Ticket -- its children's URLs are).
           {
             echo "$PR_URL"
-            # `|| true`: grep exits 1 when a PR's commits contain no #123
-            # refs, which is the NORMAL case for a plain feature PR. Without
-            # this, pipefail + set -e kill the step on every non-rollup merge.
-            git log "$BASE_SHA..$HEAD_SHA" --format=%B \
+            # `|| true` twice: git log fails if the range is unreachable (then
+            # we only miss rollup children, harmless for a plain feature PR),
+            # and grep exits 1 when the commits contain no #123 refs, which is
+            # the NORMAL case. Without these, pipefail + set -e kill the step.
+            { git log "$BASE_SHA..$HEAD_SHA" --format=%B 2>/dev/null || true; } \
               | { grep -oE '#[0-9]+' || true; } | tr -d '#' | sort -u \
               | sed "s@^@${REPO_URL}/pull/@"
           } | sort -u > /tmp/prs
