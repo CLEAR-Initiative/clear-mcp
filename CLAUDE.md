@@ -8,7 +8,12 @@ A Model Context Protocol server that lets an AI agent read CLEAR's humanitarian 
 [clear-api](https://github.com/CLEAR-Initiative/clear-api)'s GraphQL endpoint. It is a **thin,
 read-only adapter**: it forwards the Consumer's `sk_live_` key and holds no data, authorisation, or
 credentials of its own. Vocabulary lives in [CONTEXT.md](CONTEXT.md); the decisions with a "why" in
-[docs/adr/](docs/adr/). Tickets and the PRD live in Exponential (see `AGENTS.md`).
+[docs/adr/](docs/adr/) (0001–0006). The full decision record — implementation decisions, tool
+contract table, constraints and every rejected alternative — is the "Agent PRD" section of the
+feature's PRD page in Exponential: `HOME=~/.config/agent-homes/claude exponential pages get
+cmty5qb4v0001l204e01rydet --json` (feature `cmty5pgfd0003jz04pfoyibx0`). When you make a decision
+that is not derivable from the code, add an ADR here and, if it changes a contract, a comment on
+the ticket. Tickets live in Exponential (see `AGENTS.md`).
 
 ## Tech stack
 

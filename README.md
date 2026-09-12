@@ -79,6 +79,83 @@ Then ask: *"Who am I in CLEAR?"* — the agent calls `clear_whoami`. *"Find Darf
 
 Once published (V1.1) this becomes `"command": "npx", "args": ["-y", "@clear-initiative/mcp"]`.
 
+## Try it
+
+Three layers, from no backend to real data.
+
+### 1. Unit suite (no backend)
+
+```bash
+bun run test
+```
+
+Every test drives a real MCP client against the real server over an in-memory transport, with
+clear-api replaced by fixtures. This is what CI runs on every PR.
+
+### 2. Poke at it interactively (no backend needed)
+
+[MCP Inspector](https://github.com/modelcontextprotocol/inspector) gives you a browser UI to list
+the tools, read their schemas and call them:
+
+```bash
+CLEAR_API_URL=http://127.0.0.1:1 CLEAR_API_KEY=sk_live_x npx -y @modelcontextprotocol/inspector bun src/bin.ts
+```
+
+With an unreachable URL every call returns `isError` with code `UPSTREAM_UNAVAILABLE` and the
+URL it tried, which is the shape you'll see whenever `CLEAR_API_URL` is wrong.
+
+### 3. Against real data
+
+You need a running clear-api and a key.
+
+1. **A clear-api.** Either run one locally (`bun dev` in `clear-api/`, which needs its Postgres +
+   PostGIS; see that repo's README) or use a dev/staging URL. Check it answers:
+   ```bash
+   curl https://<clear-api>/health
+   ```
+2. **A key.** Sign in to `https://<clear-api>/portal` and mint an API key. It starts with
+   `sk_live_`. Your account must be approved (role `viewer`, `analyst` or `admin`); a `pending`
+   account can run `clear_whoami` but every content read returns `FORBIDDEN` / `PENDING_APPROVAL`
+   until an admin approves it.
+3. **Smoke it with Inspector** using the real values, then call `clear_whoami`. A healthy answer
+   looks like:
+   ```json
+   {
+     "caller": { "id": "…", "name": "You", "role": "viewer", "language": "en", "isActive": true, "defaultTeam": null },
+     "teams": [{ "id": "…", "name": "Sudan", "slug": "sudan", "locations": [{ "id": "…", "name": "Sudan", "level": 0 }] }],
+     "locale": "en",
+     "escapeHatchEnabled": false,
+     "apiUrl": "https://<clear-api>"
+   }
+   ```
+   Then `clear_find_location` with `{ "query": "Darfur" }` — the first hit's `id` is what every
+   other tool wants as `locationId` / `countryLocationId`.
+4. **Register it in Claude Code** (or Claude Desktop, config above) and ask in plain language:
+   ```bash
+   claude mcp add clear -e CLEAR_API_URL=https://<clear-api> -e CLEAR_API_KEY=sk_live_... -- bun /absolute/path/to/clear-mcp/src/bin.ts
+   ```
+   *"Who am I in CLEAR?"* → `clear_whoami`. *"What's happened in North Darfur this month?"* →
+   `clear_find_location`, `clear_count`, `clear_list_events`. *"What do reports say about
+   displacement there?"* → `clear_search_knowledge_base`, with `reportId` / `sourceUrl` / page
+   range to cite.
+
+If a tool call comes back with `isError`, read the `code`: `UNAUTHENTICATED` means the key is
+unknown or revoked; `FORBIDDEN` + `PENDING_APPROVAL` means the account awaits approval;
+`UPSTREAM_UNAVAILABLE` means the URL is wrong or the API is down. The same diagnostic is logged to
+stderr at startup by the self-check.
+
+### 4. Live suite and drift check
+
+With a dev/staging URL and three test keys (an approved viewer, a pending user, a revoked key):
+
+```bash
+CLEAR_API_URL=https://<clear-api> CLEAR_MCP_TEST_KEY_VIEWER=… CLEAR_MCP_TEST_KEY_PENDING=… CLEAR_MCP_TEST_KEY_REVOKED=… bun run test:live
+CLEAR_API_URL=https://<clear-api> CLEAR_API_KEY=… bun run refresh-schema && git diff --stat schema.graphql
+```
+
+Nightly CI runs both against staging once the matching repo secrets exist (see
+`.github/workflows/nightly.yml`).
+
 ## Tools
 
 | Tool | Group | What it does |
@@ -116,7 +193,9 @@ Text that originated outside CLEAR (signals, report chunks, comments) is always 
 key and should be treated as data, never as instructions.
 
 See [`CONTEXT.md`](CONTEXT.md) for vocabulary and [`docs/adr/`](docs/adr/) for the decisions
-behind the design.
+behind the design: separate service over GraphQL (0001), read-only V1 (0002), curated tools over
+generated ones (0003), the escape hatch as a config flag (0004), JSON results with errors as
+values (0005), and why `clear_get_datapoints` requires a location (0006).
 
 ## Development
 
