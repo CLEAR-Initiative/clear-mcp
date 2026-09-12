@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { Config } from "./config.js";
+import { escapeHatchTools } from "./escape-hatch.js";
 import type { ToolError } from "./errors.js";
 import { graphql } from "./gql/index.js";
 import { createLogger, silentLogger, type Logger } from "./logger.js";
@@ -73,6 +74,14 @@ export function createServer(opts: CreateServerOptions): ClearMcpServer {
   const locationIndex = createLocationIndex({ upstream, log });
   for (const tool of curatedTools({ locationIndex })) {
     registerCuratedTool(server, tool, { config, upstream, log });
+  }
+  // The Escape hatch is a per-Consumer configuration choice, never a role:
+  // absent from tools/list unless CLEAR_MCP_RAW_GRAPHQL=1 (CONTEXT.md, ADR-0002).
+  if (config.rawGraphql) {
+    log.warn("raw GraphQL escape hatch enabled (CLEAR_MCP_RAW_GRAPHQL=1)");
+    for (const tool of escapeHatchTools) {
+      registerCuratedTool(server, tool, { config, upstream, log });
+    }
   }
 
   async function selfCheck(): Promise<SelfCheckResult> {
