@@ -1,4 +1,4 @@
-import { parse, validate, type DocumentNode } from "graphql";
+import { parse, printType, validate, type DocumentNode } from "graphql";
 import { z } from "zod";
 import { ERROR_CODES, fail, ok } from "./errors.js";
 import { loadSnapshotSchema } from "./snapshot.js";
@@ -91,5 +91,36 @@ export const graphqlTool = defineTool({
   },
 });
 
+export const schemaTypeTool = defineTool({
+  name: "clear_schema_type",
+  description:
+    "DEVELOPER ESCAPE HATCH. Print a type from clear-api's GraphQL schema snapshot as SDL " +
+    "(e.g. \"Event\", \"EventsPageInput\", \"Query\"), or, with no `name`, list the root Query " +
+    "field names. Read from the committed snapshot; no network call.",
+  input: z.object({
+    name: z.string().trim().min(1).optional().describe("Type name; omit to list Query fields."),
+  }),
+  output: z.object({
+    name: z.string().nullable(),
+    sdl: z.string().nullable().describe("The type's SDL, or null when listing fields."),
+    queryFields: z.array(z.string()).nullable().describe("Root Query field names when no name was given."),
+  }),
+  async run(input) {
+    const schema = loadSnapshotSchema();
+    if (!input.name) {
+      const fields = Object.keys(schema.getQueryType()?.getFields() ?? {}).sort();
+      return ok({ name: null, sdl: null, queryFields: fields });
+    }
+    const type = schema.getType(input.name);
+    if (!type) {
+      return fail({
+        code: ERROR_CODES.BAD_USER_INPUT,
+        message: `No type named "${input.name}" in the schema snapshot.`,
+      });
+    }
+    return ok({ name: input.name, sdl: printType(type), queryFields: null });
+  },
+});
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const escapeHatchTools: ToolDefinition<any, any>[] = [graphqlTool];
+export const escapeHatchTools: ToolDefinition<any, any>[] = [graphqlTool, schemaTypeTool];

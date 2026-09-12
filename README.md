@@ -96,6 +96,14 @@ List tools take `limit` (clamped to 1–25, default 10) and `offset`, and return
 with `truncated: true`. Get tools return `{ item }` untruncated, or `{ item: null }`. `teamId`
 (from `clear_whoami`) narrows Monitor tools to a team's location scope; omit it for the global feed.
 
+### Developer escape hatch
+
+With `CLEAR_MCP_RAW_GRAPHQL=1` two extra tools appear — `clear_graphql` (run a raw read-only
+query, get raw `data`) and `clear_schema_type` (print a type's SDL from the snapshot, or list
+the root `Query` fields). Even here nothing but `query` operations ever reach clear-api: a
+`mutation` or `subscription`, or any document the snapshot does not validate, is rejected before
+any network call. Leave it off for non-developer consumers.
+
 All tools are read-only. Every result is JSON, both as a text block and as `structuredContent`.
 Failures come back as `isError: true` with `{ code, subCode?, message, upstreamUrl? }` preserved
 from clear-api — e.g. `FORBIDDEN` / `PENDING_APPROVAL` means the account is awaiting approval.
