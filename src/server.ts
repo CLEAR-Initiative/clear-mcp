@@ -3,6 +3,7 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { Config } from "./config.js";
 import type { ToolError } from "./errors.js";
 import { createLogger, silentLogger, type Logger } from "./logger.js";
+import { createLocationIndex } from "./location-index.js";
 import { curatedTools } from "./tools/index.js";
 import type { ToolContext, ToolDefinition } from "./tools/types.js";
 import { createUpstream, type FetchLike, type Upstream } from "./upstream.js";
@@ -45,7 +46,8 @@ export function createServer(opts: CreateServerOptions): ClearMcpServer {
     },
   );
 
-  for (const tool of curatedTools) {
+  const locationIndex = createLocationIndex({ upstream, log });
+  for (const tool of curatedTools({ locationIndex })) {
     registerCuratedTool(server, tool, { config, upstream, log });
   }
 

@@ -1,5 +1,11 @@
+import type { LocationIndex } from "../location-index.js";
+import { createFindLocationTool } from "./find-location.js";
 import type { ToolDefinition } from "./types.js";
 import { whoamiTool } from "./whoami.js";
+
+export interface ToolDeps {
+  locationIndex: LocationIndex;
+}
 
 /**
  * The Curated tool set, in the order they are listed to the Consumer.
@@ -7,4 +13,6 @@ import { whoamiTool } from "./whoami.js";
  * separately and only when `CLEAR_MCP_RAW_GRAPHQL=1`.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const curatedTools: ToolDefinition<any, any>[] = [whoamiTool];
+export function curatedTools(deps: ToolDeps): ToolDefinition<any, any>[] {
+  return [whoamiTool, createFindLocationTool(deps.locationIndex)];
+}
