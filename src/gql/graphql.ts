@@ -52,6 +52,15 @@ export type AlertsPageInput = {
 };
 
 /**
+ * Durable enrichment status for the Dagster drain. PENDING = needs
+ * (re)enrichment (set on crisis create / event add / event remove);
+ * ENRICHED = narrative/scenarios/needs-analysis current.
+ */
+export type CrisisEnrichmentStatus =
+  | 'ENRICHED'
+  | 'PENDING';
+
+/**
  * Half-open date window (from inclusive, to exclusive) used to
  * filter `searchKnowledgebase` by the chunk's extracted event
  * window. Chunks whose time_range overlaps the window match.
@@ -211,6 +220,18 @@ export type ClearCountQueryVariables = Exact<{
 
 export type ClearCountQuery = { entityStats: { total: number, buckets: Array<{ key: string, count: number }> } };
 
+export type ClearListCrisesQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type ClearListCrisesQuery = { crises: Array<{ id: string, severity: number, enrichmentStatus: CrisisEnrichmentStatus, title: string | null, summary: string | null, populationAffected: string | null, populationInArea: string | null, createdAt: string, updatedAt: string, generalLocation: { id: string, name: string, level: number } | null, events: Array<{ id: string }> }> };
+
+export type ClearGetCrisisQueryVariables = Exact<{
+  id: string;
+}>;
+
+
+export type ClearGetCrisisQuery = { crisis: { id: string, severity: number, enrichmentStatus: CrisisEnrichmentStatus, title: string | null, summary: string | null, scenarios: unknown, needs: unknown, populationAffected: string | null, populationInArea: string | null, createdAt: string, updatedAt: string, generalLocation: { id: string, name: string, level: number } | null, events: Array<{ id: string }> } | null };
+
 export type ClearGetAlertQueryVariables = Exact<{
   id: string;
 }>;
@@ -333,6 +354,54 @@ export const ClearCountDocument = new TypedDocumentString(`
   }
 }
     `) as unknown as TypedDocumentString<ClearCountQuery, ClearCountQueryVariables>;
+export const ClearListCrisesDocument = new TypedDocumentString(`
+    query ClearListCrises {
+  crises {
+    id
+    severity
+    enrichmentStatus
+    title
+    summary
+    populationAffected
+    populationInArea
+    createdAt
+    updatedAt
+    generalLocation {
+      id
+      name
+      level
+    }
+    events {
+      id
+    }
+  }
+}
+    `) as unknown as TypedDocumentString<ClearListCrisesQuery, ClearListCrisesQueryVariables>;
+export const ClearGetCrisisDocument = new TypedDocumentString(`
+    query ClearGetCrisis($id: String!) {
+  crisis(id: $id) {
+    id
+    severity
+    enrichmentStatus
+    title
+    summary
+    scenarios
+    needs
+    populationAffected
+    populationInArea
+    createdAt
+    updatedAt
+    generalLocation {
+      id
+      name
+      level
+    }
+    events {
+      id
+    }
+  }
+}
+    `) as unknown as TypedDocumentString<ClearGetCrisisQuery, ClearGetCrisisQueryVariables>;
 export const ClearGetAlertDocument = new TypedDocumentString(`
     query ClearGetAlert($id: String!) {
   alert(id: $id) {

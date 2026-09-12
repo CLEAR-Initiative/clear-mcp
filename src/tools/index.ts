@@ -1,5 +1,6 @@
 import type { LocationIndex } from "../location-index.js";
 import { countTool } from "./count.js";
+import { getCrisisTool, listCrisesTool } from "./crises.js";
 import { createFindLocationTool } from "./find-location.js";
 import { getAlertTool } from "./get-alert.js";
 import { getEventTool } from "./get-event.js";
@@ -36,5 +37,8 @@ export function curatedTools(deps: ToolDeps): ToolDefinition<any, any>[] {
     getAlertTool,
     getEventTool,
     getSignalTool,
+    // Analyse
+    listCrisesTool,
+    getCrisisTool,
   ];
 }
