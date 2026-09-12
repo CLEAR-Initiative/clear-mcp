@@ -24,8 +24,9 @@
     "refresh-schema": "bun scripts/refresh-schema.ts",
     "lint": "eslint .",
     "typecheck": "bun run codegen && tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vitest run --exclude tests/live/**",
+    "test:watch": "vitest",
+    "test:live": "vitest run tests/live"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",

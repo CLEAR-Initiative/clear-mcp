@@ -96,6 +96,14 @@ List tools take `limit` (clamped to 1–25, default 10) and `offset`, and return
 with `truncated: true`. Get tools return `{ item }` untruncated, or `{ item: null }`. `teamId`
 (from `clear_whoami`) narrows Monitor tools to a team's location scope; omit it for the global feed.
 
+### Developer escape hatch
+
+With `CLEAR_MCP_RAW_GRAPHQL=1` two extra tools appear — `clear_graphql` (run a raw read-only
+query, get raw `data`) and `clear_schema_type` (print a type's SDL from the snapshot, or list
+the root `Query` fields). Even here nothing but `query` operations ever reach clear-api: a
+`mutation` or `subscription`, or any document the snapshot does not validate, is rejected before
+any network call. Leave it off for non-developer consumers.
+
 All tools are read-only. Every result is JSON, both as a text block and as `structuredContent`.
 Failures come back as `isError: true` with `{ code, subCode?, message, upstreamUrl? }` preserved
 from clear-api — e.g. `FORBIDDEN` / `PENDING_APPROVAL` means the account is awaiting approval.
@@ -113,7 +121,13 @@ bun run lint
 bun run typecheck        # runs codegen first
 bun run build            # codegen + tsc → dist/ (Node 20+ compatible ESM)
 bun run refresh-schema   # re-snapshot schema.graphql from a dev/staging clear-api
+bun run test:live        # live suite; needs CLEAR_API_URL + CLEAR_MCP_TEST_KEY_{VIEWER,PENDING,REVOKED}
 ```
+
+The live suite (`tests/live/`) proves the three things fixtures cannot — a pending key gets
+`FORBIDDEN` / `PENDING_APPROVAL`, a revoked key gets `UNAUTHENTICATED`, a viewer key works — and
+skips cleanly when the env vars are unset or the target is unreachable. Nightly CI runs it with
+`CLEAR_MCP_LIVE=1` (skip becomes failure) against staging, together with a schema-drift check.
 
 `schema.graphql` is the committed copy of clear-api's SDL. Tool documents are typed against it
 by `graphql-codegen` (output in `src/gql/`, committed), and the test suite validates every outgoing

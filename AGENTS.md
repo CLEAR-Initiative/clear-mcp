@@ -37,6 +37,10 @@ bun run build
 bun run test
 ```
 
+Nightly (`.github/workflows/nightly.yml`) runs the live suite (`bun run test:live`, gated
+`CLEAR_MCP_LIVE=1`) and the snapshot-drift check against staging. **Never mute or make optional** —
+it is the only alarm for schema drift and for a changed auth contract.
+
 `schema.graphql` must equal the SDL of the target clear-api. Refresh it with
 `CLEAR_API_URL=… CLEAR_API_KEY=… bun run refresh-schema` against dev/staging (introspection is off
 in production) and commit the diff together with any tool changes it forces.

@@ -1,0 +1,62 @@
+name: Nightly (live + schema drift)
+
+# The two jobs only a real clear-api can drive. Both target STAGING (introspection
+# is off in production). Neither job is optional: a red run here is the only
+# alarm that the committed schema snapshot has drifted from the target, or that
+# clear-api's auth contract (PENDING_APPROVAL / UNAUTHENTICATED) changed.
+#
+# Required repo secrets:
+#   CLEAR_STAGING_API_URL          base URL of staging clear-api (no /graphql)
+#   CLEAR_MCP_TEST_KEY_VIEWER      sk_live_ key of an approved `viewer`
+#   CLEAR_MCP_TEST_KEY_PENDING     sk_live_ key of a `pending` user
+#   CLEAR_MCP_TEST_KEY_REVOKED     sk_live_ key that has been revoked
+# Mint them with clear-api's scripts/create-pipeline-user.ts or /portal.
+
+on:
+  schedule:
+    - cron: "17 3 * * *" # 03:17 UTC daily
+  workflow_dispatch:
+
+jobs:
+  live:
+    name: Live suite against staging
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Live assertions (pending → PENDING_APPROVAL, revoked → UNAUTHENTICATED, viewer ok)
+        run: bun run test:live
+        env:
+          CLEAR_MCP_LIVE: "1"
+          CLEAR_API_URL: ${{ secrets.CLEAR_STAGING_API_URL }}
+          CLEAR_MCP_TEST_KEY_VIEWER: ${{ secrets.CLEAR_MCP_TEST_KEY_VIEWER }}
+          CLEAR_MCP_TEST_KEY_PENDING: ${{ secrets.CLEAR_MCP_TEST_KEY_PENDING }}
+          CLEAR_MCP_TEST_KEY_REVOKED: ${{ secrets.CLEAR_MCP_TEST_KEY_REVOKED }}
+
+  schema-drift:
+    name: Schema snapshot matches staging
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Refresh schema.graphql from staging
+        run: bun run refresh-schema
+        env:
+          CLEAR_API_URL: ${{ secrets.CLEAR_STAGING_API_URL }}
+          CLEAR_API_KEY: ${{ secrets.CLEAR_MCP_TEST_KEY_VIEWER }}
+      - name: Fail on drift
+        run: |
+          if ! git diff --exit-code --stat schema.graphql; then
+            echo "::error::schema.graphql has drifted from staging clear-api. Run 'bun run refresh-schema' locally, commit the diff, and fix any tool the change breaks."
+            git diff schema.graphql | head -200
+            exit 1
+          fi
+      # A refreshed snapshot must still produce the committed generated types.
+      - name: Generated types still in sync
+        run: bun run codegen && git diff --exit-code src/gql
