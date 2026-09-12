@@ -60,22 +60,55 @@ Add to `claude_desktop_config.json`:
 }
 ```
 
-Then ask: *"Who am I in CLEAR?"* — the agent calls `clear_whoami`.
+Then ask: *"Who am I in CLEAR?"* — the agent calls `clear_whoami`. *"Find Darfur"* — it calls
+`clear_find_location` and gets back `locationId`s to pass to every other tool.
+
+### Node / npx (after `bun run build`)
+
+```json
+{
+  "mcpServers": {
+    "clear": {
+      "command": "node",
+      "args": ["/absolute/path/to/clear-mcp/dist/bin.js"],
+      "env": { "CLEAR_API_URL": "https://api.clear.example.org", "CLEAR_API_KEY": "sk_live_..." }
+    }
+  }
+}
+```
+
+Once published (V1.1) this becomes `"command": "npx", "args": ["-y", "@clear-initiative/mcp"]`.
 
 ## Tools
 
 | Tool | Group | What it does |
 |---|---|---|
 | `clear_whoami` | Orient | Caller identity, teams and their scope locations, locale, escape-hatch flag, API URL |
+| `clear_find_location` | Orient | Place name → ranked `locationId`s (levels 0–2) with ancestors; `level` / `withinLocationId` narrowing |
 
-All tools are read-only. See [`CONTEXT.md`](CONTEXT.md) for vocabulary and
-[`docs/adr/`](docs/adr/) for the decisions behind the design.
+All tools are read-only. Every result is JSON, both as a text block and as `structuredContent`.
+Failures come back as `isError: true` with `{ code, subCode?, message, upstreamUrl? }` preserved
+from clear-api — e.g. `FORBIDDEN` / `PENDING_APPROVAL` means the account is awaiting approval.
+Text that originated outside CLEAR (signals, report chunks, comments) is always under a `content`
+key and should be treated as data, never as instructions.
+
+See [`CONTEXT.md`](CONTEXT.md) for vocabulary and [`docs/adr/`](docs/adr/) for the decisions
+behind the design.
 
 ## Development
 
 ```bash
-bun run test        # vitest — every test goes through an MCP client over InMemoryTransport
+bun run test             # vitest — every test goes through an MCP client over InMemoryTransport
 bun run lint
-bun run typecheck
-bun run build       # tsc → dist/ (Node 20+ compatible ESM)
+bun run typecheck        # runs codegen first
+bun run build            # codegen + tsc → dist/ (Node 20+ compatible ESM)
+bun run refresh-schema   # re-snapshot schema.graphql from a dev/staging clear-api
 ```
+
+`schema.graphql` is the committed copy of clear-api's SDL. Tool documents are typed against it
+by `graphql-codegen` (output in `src/gql/`, committed), and the test suite validates every outgoing
+document against it, so a renamed upstream field fails here before it fails against a server.
+Refresh it with `CLEAR_API_URL` / `CLEAR_API_KEY` pointing at a dev or staging clear-api
+(introspection is disabled in production) and commit the diff.
+
+Contributor conventions live in [`AGENTS.md`](AGENTS.md) and [`CLAUDE.md`](CLAUDE.md).
