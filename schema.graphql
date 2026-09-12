@@ -1,0 +1,4548 @@
+input AcceptInviteInput {
+  name: String!
+  password: String!
+  token: String!
+}
+
+type ActivityCountsByAction {
+  alertCreate: Int!
+  crisisCreate: Int!
+  eventCreate: Int!
+  feedbackCreate: Int!
+  login: Int!
+  signalCreateManual: Int!
+  total: Int!
+}
+
+"""A single user-initiated action recorded for analytics."""
+type ActivityLog {
+  """
+  Namespaced action verb — e.g. 'auth.login', 'signal.create_manual',
+  'event.create', 'alert.create', 'crisis.create', 'feedback.create'.
+  """
+  action: String!
+  createdAt: DateTime!
+  id: String!
+  ipAddress: String
+
+  """Per-action context (title, severity, etc.). Shape varies by action."""
+  metadata: JSON
+
+  """The created/affected row's id. Null for actions like login."""
+  resourceId: String
+
+  """
+  Coarse resource bucket — 'signal' / 'event' / 'alert' / 'crisis' /
+  'feedback' / 'session'.
+  """
+  resourceType: String
+  user: User!
+  userAgent: String
+}
+
+"""Filter for the paginated activityLogs query."""
+input ActivityLogFilterInput {
+  """Exact action match."""
+  action: String
+
+  """Action prefix match — e.g. 'crisis.' returns all crisis-related rows."""
+  actionPrefix: String
+  from: DateTime
+
+  """
+  Coarse resource bucket — 'signal' / 'event' / 'alert' / 'crisis' /
+  'feedback' / 'session'.
+  """
+  resourceType: String
+  to: DateTime
+  userId: String
+}
+
+"""Aggregate counts and time-series for the admin dashboard."""
+type ActivityStats {
+  """Daily activity counts across the window (UTC dates)."""
+  byDay: [DailyActivityCount!]!
+
+  """
+  Per-user breakdown, ordered by total activity (desc), limited to
+  the top 50 most-active users in the window.
+  """
+  byUser: [UserActivitySummary!]!
+
+  """
+  Window the stats cover, in ISO-8601. Mirrored back to the client so
+  a paginated dashboard can know what range its numbers are based on.
+  """
+  from: DateTime!
+  to: DateTime!
+
+  """Total event counts across the window, keyed by action."""
+  totals: ActivityCountsByAction!
+}
+
+input AddCommentInput {
+  comment: String!
+  crisisId: String
+
+  """Provide exactly one of eventId, signalId, or crisisId."""
+  eventId: String
+  signalId: String
+
+  """User IDs to tag in the comment."""
+  tagUserIds: [String!]
+}
+
+input AddFeedbackInput {
+  crisisId: String
+
+  """Provide exactly one of eventId, signalId, or crisisId."""
+  eventId: String
+
+  """Rating from 1 to 5."""
+  rating: Int!
+  signalId: String
+
+  """Optional textual feedback."""
+  text: String
+}
+
+"""
+One aggregated bucket - the roll-up of every contributing
+`report_datapoint` for a scope (window × window_kind × location).
+Consumed by the situation-analysis dashboard tiles and by chatbot
+factual queries. See `AggregatedField` docstring for the JSON
+`data` shape.
+"""
+type AggregatedDatapoint {
+  computedAt: DateTime!
+  contributingReportIds: [String!]!
+
+  """
+  Flat map keyed by field label. Each value is either a
+  QualityEnvelope (for numeric fields), a SetUnionEnvelope (for label
+  fields - `{ values, contributing_report_ids }`), or `null` when
+  no report in scope reported that field.
+  
+  A numeric QualityEnvelope carries `{ value, unit, confidence_mix,
+  newest_report_at, oldest_report_at, contributing_report_ids }` plus
+  the credibility fields (clear-pipeline ADR-0004/0005): the
+  cached time-invariant `reliability` (1–4) and `intrinsic_credibility`
+  (0–8.5), and - added on every read - `recency` (0–1.5),
+  `information_credibility` (0–10), and `data_quality` (**0–10**), the
+  per-field headline. The legacy `quality_score` (0–1, directness-only)
+  is retained for backwards compatibility.
+  """
+  data: JSON!
+
+  """
+  Bucket headline data quality on a **0–10** scale (clear-pipeline
+  ADR-0005): the mean of the fields' read-time `data_quality`
+  (`(reliability × 2.5 × information_credibility) / 10`, Recency folded
+  in at read). The stored column carries the same 0–10 scale. NOTE: this
+  is a scale change from the pre-data-quality `quality_score` (0–1) -
+  thresholds tuned on the old scale must be re-tuned.
+  """
+  dataQualityScore: Float!
+
+  """
+  Estimated current totals - latest authoritative stock + the flows
+  reported after it (ADR-0006 §4). This is an **as-of-now** figure, NOT the
+  bucket's period: it is returned only for a bucket whose window still
+  includes now (the current year/month/week and the `all` tier) and is
+  `null` on any historical bucket, so a past-period row never carries a
+  present-day number. Resolved lazily - the bounded `report_datapoints` scan
+  runs only when this field is selected - but it is a real scan, not free.
+  """
+  estimatedCurrentTotals: CurrentTotals
+  id: String!
+
+  """
+  Null when the bucket rolls up to a country (yearly, all-time
+  tiers). Otherwise references `locations.id`.
+  """
+  locationId: String
+  newestSourceAt: DateTime!
+  oldestSourceAt: DateTime!
+
+  """
+  True when the resolver assembled this bucket on-demand from
+  `report_datapoints` rather than serving it from the pre-compute
+  cache. The dashboard can render a "just computed" indicator so
+  users know the number reflects the freshest possible view.
+  """
+  onDemand: Boolean!
+  reportCount: Int!
+  schemaVersion: String!
+
+  """
+  Bitemporal validity - this snapshot's lifetime as a "current"
+  row. `validTo` is null when the row is still the current one for
+  its bucket; else it carries the timestamp when a newer computation
+  superseded it.
+  """
+  validFrom: DateTime!
+  validTo: DateTime
+  windowEnd: DateTime!
+
+  """One of `weekly` | `monthly` | `yearly` | `all`."""
+  windowKind: String!
+  windowStart: DateTime!
+}
+
+"""An alert created from an event, distributed to subscribed users."""
+type Alert {
+  """When the alert row was first created."""
+  createdAt: DateTime!
+
+  """The event this alert was created from."""
+  event: Event!
+  id: String!
+
+  """
+  Location of the alert's event's FIRST signal — the same point as
+  `event.representativePoint`, surfaced directly on the alert so a
+  marker can be placed without walking into the event. Null when the
+  first signal has no located point. Requires any authenticated
+  content reader.
+  """
+  representativePoint: Location
+  status: AlertStatus!
+
+  """Last time the alert row was updated (e.g. status transition)."""
+  updatedAt: DateTime!
+
+  """Users who received this alert."""
+  userAlerts: [UserAlert!]!
+}
+
+input AlertDigestInput {
+  """List of alert IDs to include in the digest."""
+  alertIds: [String!]!
+
+  """Frequency: daily, weekly, or monthly."""
+  frequency: String!
+}
+
+input AlertNotifyInput {
+  """Alert ID to notify subscribers about (uses immediate frequency)."""
+  alertId: String!
+}
+
+enum AlertOrderBy {
+  """Oldest first by event.firstSignalCreatedAt."""
+  CREATED_ASC
+
+  """Newest first by event.firstSignalCreatedAt."""
+  CREATED_DESC
+
+  """Lowest event severity first."""
+  SEVERITY_ASC
+
+  """Highest event severity first."""
+  SEVERITY_DESC
+}
+
+"""Publication status of an alert."""
+enum AlertStatus {
+  archived
+  draft
+  published
+}
+
+"""
+A user's subscription to alerts of a specific type at a specific location.
+"""
+type AlertSubscription {
+  active: Boolean!
+
+  """
+  Disaster/event type to subscribe to (e.g. 'fl' for flood, 'eq' for earthquake).
+  """
+  alertType: String!
+  channel: Channel!
+  createdAt: DateTime!
+  frequency: Frequency!
+  id: String!
+  location: Location!
+
+  """
+  Minimum event severity (1-5) to notify on. Alerts with event.severity < minSeverity are suppressed for this user.
+  """
+  minSeverity: Int!
+  updatedAt: DateTime!
+  user: User!
+  userId: String!
+}
+
+type AlertsPage {
+  hasMore: Boolean!
+  items: [Alert!]!
+  totalCount: Int!
+}
+
+input AlertsPageInput {
+  """
+  Glide codes — alert event must contain at least one of these in its
+  `types` array. Case-sensitive.
+  """
+  eventTypes: [String!]
+
+  """Filter on event.firstSignalCreatedAt — inclusive."""
+  from: DateTime
+
+  """Hide isDummy events when false (default)."""
+  includeDummy: Boolean
+
+  """Page size — clamped to [1, 100]. Default 25."""
+  limit: Int
+
+  """
+  Restrict to alerts whose event sits under this location (or any of
+  its descendants).
+  """
+  locationId: String
+
+  """Zero-based row offset. Default 0."""
+  offset: Int
+  orderBy: AlertOrderBy
+
+  """Inclusive upper bound on event severity (1-5)."""
+  severityMax: Int
+
+  """Inclusive lower bound on event severity (1-5)."""
+  severityMin: Int
+  status: AlertStatus
+
+  """Apply a team's location-scope filter to the underlying events."""
+  teamId: String
+
+  """Filter on event.firstSignalCreatedAt — inclusive."""
+  to: DateTime
+}
+
+"""
+A personal API key for programmatic access. The full key is only shown once at creation.
+"""
+type ApiKey {
+  createdAt: DateTime!
+
+  """Optional expiration date. Expired keys are rejected automatically."""
+  expiresAt: DateTime
+  id: String!
+
+  """When this key was last used to authenticate a request."""
+  lastUsedAt: DateTime
+
+  """Descriptive name you chose when creating the key."""
+  name: String!
+
+  """Short prefix for identification (e.g. sk_live_abc1)."""
+  prefix: String!
+
+  """When this key was revoked, if applicable. Revocation is permanent."""
+  revokedAt: DateTime
+  updatedAt: DateTime!
+}
+
+"""
+Result of the admin-only `approveUser` mutation. Flips a `pending`
+user's role to `viewer` and moves the matching CRM contact from
+the prospects collection into the approved collection, triggering
+Exponential's welcome automation.
+"""
+type ApproveUserResult {
+  """
+  True when the CRM-side list move completed cleanly. False means
+  the user is approved locally but the CRM record still sits in the
+  prospects list — the admin can retry from /portal/admin without
+  re-approving the user.
+  """
+  crmMoved: Boolean!
+
+  """
+  Non-fatal CRM warnings, if any (e.g. profileType update failed
+  while the list swap succeeded). Empty on the happy path.
+  """
+  crmWarnings: [String!]!
+
+  """The approved user (with the new role)."""
+  user: User!
+}
+
+"""Result of the archiveStaleAlerts bulk mutation."""
+type ArchiveStaleAlertsResult {
+  alertsArchived: Int!
+}
+
+"""Notification channel for alert subscriptions."""
+enum Channel {
+  email
+  sms
+}
+
+"""A tag linking a user to a comment."""
+type CommentTag {
+  comment: UserComment!
+  user: User!
+}
+
+input CreateAlertInput {
+  """The event ID to create an alert from."""
+  eventId: String!
+  status: AlertStatus
+}
+
+"""Input for creating a new API key."""
+input CreateApiKeyInput {
+  """Optional expiration date. Omit for a key that never expires."""
+  expiresAt: DateTime
+
+  """A descriptive name for this key (e.g. my-app-prod)."""
+  name: String!
+}
+
+"""
+Returned only from createApiKey. Contains the full plaintext
+key that will never be retrievable again.
+"""
+type CreateApiKeyPayload {
+  apiKey: ApiKey!
+
+  """
+  The full API key. Copy this immediately — it cannot be retrieved later.
+  """
+  key: String!
+}
+
+input CreateBulkNotificationsInput {
+  actionText: String
+  actionUrl: String
+  message: String!
+  notificationType: String!
+
+  """List of user IDs to notify."""
+  userIds: [String!]!
+}
+
+input CreateCrisisFromEventsInput {
+  """Event IDs to link to the newly created crisis (must not be empty)."""
+  eventIds: [String!]!
+  locationId: String
+
+  """Needs as JSON."""
+  needs: JSON!
+  severity: Float!
+  summary: String
+
+  """
+  Team the crisis is being filed under. When present, the caller may be
+  a team-level team_admin or field_coordinator on that team instead of a
+  platform admin/analyst. Purely an authorisation hint — the crisis itself
+  has no team column; team affiliation is derived from location scope.
+  Ignored for platform-level callers.
+  """
+  teamId: String
+  title: String
+}
+
+input CreateDataSourceInput {
+  baseUrl: String
+  infoUrl: String
+  isActive: Boolean
+  name: String!
+
+  """NATO Admiralty-style reliability grade 1–4; null = ungraded."""
+  reliability: Int
+
+  """Alias set for source-name normalisation (see resolveDataSource)."""
+  synonyms: [String!]
+  type: String!
+}
+
+"""Input for `createDevUser`."""
+input CreateDevUserInput {
+  """The dev's email address — also the dedup key against existing users."""
+  email: String!
+
+  """
+  Optional descriptive label for the first API key. Defaults to "Initial dev key".
+  """
+  keyName: String
+
+  """Display name shown in the welcome email and in the User row."""
+  name: String!
+}
+
+"""
+Result of the admin-only `createDevUser` mutation. The plaintext API
+key is returned only here — it is never stored and cannot be retrieved
+later. The admin UI surfaces it once so the operator can copy-paste it
+in case the welcome email bounces.
+"""
+type CreateDevUserResult {
+  """
+  The full plaintext API key (sk_live_…). Save this immediately — it
+  will not be retrievable from the API after this response is read.
+  """
+  plaintextKey: String!
+
+  """
+  True when a long-lived set-password verification token was successfully
+  issued. The welcome email contains a link that consumes the token.
+  """
+  setPasswordTokenIssued: Boolean!
+
+  """The newly-provisioned user."""
+  user: User!
+
+  """
+  True when the welcome email was successfully handed off to the email provider.
+  """
+  welcomeEmailSent: Boolean!
+}
+
+input CreateEventInput {
+  """Aggregated casualties for the event (max across constituent signals)."""
+  casualties: Int
+  description: String
+  descriptionSignals: JSON
+  destinationId: String
+  firstSignalCreatedAt: String!
+  lastSignalCreatedAt: String!
+
+  """
+  Latitude for automatic geo-resolution (resolves to nearest location in hierarchy).
+  """
+  lat: Float
+
+  """Longitude for automatic geo-resolution."""
+  lng: Float
+  locationId: String
+  originId: String
+  populationAffected: String
+
+  """Estimated population displaced (BigInt as string)."""
+  populationDisplaced: String
+  rank: Float!
+
+  """Severity score (1–5). Aggregated from signal severities."""
+  severity: Int
+  signalIds: [String!]!
+
+  """
+  When the real-world event started (onset), parsed from signal text.
+  ISO-8601; null/omitted when no onset could be resolved.
+  """
+  startedAt: String
+
+  """
+  Team the event is being filed under. When present, the caller may be
+  a team-level team_admin or field_coordinator on that team instead of a
+  platform admin/analyst. Purely an authorisation hint — the event itself
+  has no team column; team affiliation is derived from location scope.
+  Ignored for platform-level callers.
+  """
+  teamId: String
+  title: String
+  types: [String!]!
+  validFrom: String!
+  validTo: String!
+}
+
+input CreateGroundSourceInput {
+  consentRecordedAt: String
+  consentRecordedBy: String
+
+  """
+  REQUIRED (with consentRecordedAt + consentRecordedBy) for the
+  group kinds; hotline consent is explicit by design.
+  """
+  consentScope: String
+
+  """"staff_group" | "partner_group" | "hotline"."""
+  kind: String!
+  name: String!
+
+  """Defaults to "private"."""
+  privacyDefault: String
+  retentionRule: String
+
+  """Defaults to ["admin", "analyst"]."""
+  reviewerRoles: [String!]
+
+  """WhatsApp group JID (or hotline number). Must be unique."""
+  transportId: String!
+}
+
+input CreateLocationInput {
+  geoId: Int
+  level: Int!
+  name: String!
+  osmId: String
+  pCode: String
+  parentId: String
+}
+
+input CreateManualSignalInput {
+  description: String!
+  destinationId: String
+
+  """Latitude for automatic geo-resolution."""
+  lat: Float
+
+  """Longitude for automatic geo-resolution."""
+  lng: Float
+  locationId: String
+
+  """
+  Media files (direct upload via graphql-upload, alternative to mediaUrls).
+  """
+  media: [Upload!]
+
+  """Media URLs (pre-uploaded via /api/upload endpoint)."""
+  mediaUrls: [String!]
+
+  """
+  Arbitrary internal metadata stored in rawData (e.g. notes, recommendAlert).
+  Not surfaced in the UI - use freely without schema changes.
+  """
+  metadata: JSON
+  originId: String
+
+  """Severity score (1–5)."""
+  severity: Int
+
+  """Data source ID (must be field_officer, partner, or government type)."""
+  sourceId: String!
+
+  """
+  Team the signal is being filed under. When present, the caller may be
+  a team-level team_admin or field_coordinator on that team instead of a
+  platform admin/analyst. Purely an authorisation hint — the signal itself
+  has no team column; team affiliation is derived from location scope.
+  Ignored for platform-level callers.
+  """
+  teamId: String
+  title: String!
+
+  """URL or reference link."""
+  url: String
+}
+
+input CreateNotificationInput {
+  actionText: String
+  actionUrl: String
+  message: String!
+  notificationType: String!
+  userId: String!
+}
+
+"""Fields for creating a new organisation."""
+input CreateOrganisationInput {
+  """Display name for the organisation."""
+  name: String!
+
+  """URL-friendly identifier. Must be unique."""
+  slug: String!
+}
+
+"""Input for the `createPublicEventLink` mutation."""
+input CreatePublicEventLinkInput {
+  """
+  The event to share. Caller must be able to read it via the
+  normal `event(id)` resolver — i.e. `requireContentReader`
+  passes.
+  """
+  eventId: String!
+
+  """
+  Snapshot lifetime in days. Defaults to 30, capped at 90. Smaller
+  values produce shorter URLs by reducing the impact of any future
+  URL-history scraping.
+  """
+  ttlDays: Int
+}
+
+"""
+Returned once from `createPublicEventLink`. The token is part
+of the URL and not retrievable again — same one-time-show semantics
+as `createApiKey`.
+"""
+type CreatePublicEventLinkResult {
+  """
+  Wall-clock expiry — when the cached snapshot will be dropped
+  from Redis (assuming it isn't evicted earlier or revoked).
+  """
+  expiresAt: DateTime!
+
+  """The plaintext token. Embedded in `url` for convenience."""
+  token: String!
+
+  """
+  Pre-built /public/event/<eventId>/<token> URL on the frontend.
+  Hand this straight to the share UI.
+  """
+  url: String!
+}
+
+input CreateSignalInput {
+  """Reported casualties for the signal."""
+  casualties: Int
+  collectedAt: String
+
+  """
+  Fingerprint of rawData, for sources whose records get revised in
+  place (e.g. IDMC). Optional — most sources never revise a signal after
+  creation, so this stays null for them. Seeding it here means an
+  immediate follow-up updateSignalContent call (same hash) is a correct
+  no-op instead of falsely stamping lastRevisedAt on a brand-new signal.
+  """
+  contentHash: String
+  description: String
+  destinationId: String
+
+  """
+  Stable upstream identifier for idempotent ingestion. If a signal with
+  the same (sourceId, externalId) already exists, createSignal returns the
+  existing row instead of creating a duplicate. Recommended prefix scheme:
+  "dataminr:{alertId}", "gdacs:{eventid}", "acled:{event_id_cnty}".
+  """
+  externalId: String
+
+  """
+  Optional output of clear-pipeline's text-based geoparser. Additive
+  enrichment, stored verbatim for downstream comparison against the
+  source's coords. Schema documented on the signals model.
+  """
+  geoparsedData: JSON
+
+  """
+  Latitude for automatic geo-resolution (resolves to nearest location in hierarchy).
+  """
+  lat: Float
+
+  """Longitude for automatic geo-resolution."""
+  lng: Float
+  locationId: String
+
+  """Media URLs (source URLs for images, videos, etc.)."""
+  media: [String!]
+  originId: String
+
+  """
+  Human-readable name to use when the resolver has to create a new L4
+  point location from `lat`/`lng`. Typically the geoparser's
+  top extracted candidate suffixed with " (unresolved)" when the
+  Nominatim lookup failed, so audit views show `al-Obeid (unresolved)`
+  instead of the signal's full paragraph. Ignored when `locationId`
+  is supplied. When omitted, the resolver falls back to a coord-based
+  label like `Point 15.6280, 30.2156`.
+  """
+  pointName: String
+  publishedAt: String!
+
+  """
+  Write-only ingest payload stored internally. Not exposed on Signal queries.
+  """
+  rawData: JSON!
+
+  """
+  Pointer to the raw payload blob in the S3 data lake (bronze layer),
+  written by the Dagster ingest asset. Optional — rawData carries the payload
+  for sources not yet landing in the lake.
+  """
+  rawS3Key: String
+
+  """Severity score (1–5). From data source or estimated by pipeline."""
+  severity: Int
+  sourceId: String!
+  title: String
+  url: String
+}
+
+input CreateTeamInput {
+  description: String
+  name: String!
+  organisationId: String!
+  slug: String!
+}
+
+"""
+Input for creating a new webhook subscription. The secret is
+generated server-side (openssl rand -hex 32 equivalent) and returned
+once on create.
+"""
+input CreateWebhookSubscriptionInput {
+  """Whether the subscription starts active. Defaults to true."""
+  active: Boolean
+
+  """
+  Empty array = fire on all events. Otherwise, only fire when the
+  source payload's event type matches one of these values.
+  """
+  eventTypeFilter: [String!]
+  name: String!
+  targetUrl: String!
+}
+
+"""A crisis aggregates multiple events into a single coherent narrative."""
+type Crisis {
+  """
+  Supporting documents uploaded by users (reports, photos, PDFs).
+  Returned as presigned URLs — the underlying storage is S3 keys, which
+  the resolver converts at read time so links stay short-lived.
+  """
+  attachments: [String!]!
+
+  """User comments on this crisis."""
+  comments: [UserComment!]!
+
+  """When the crisis row was created."""
+  createdAt: DateTime!
+
+  """
+  Enrichment status for the pipeline drain (PENDING until enrichment runs).
+  """
+  enrichmentStatus: CrisisEnrichmentStatus!
+
+  """Events that are part of this crisis."""
+  events: [Event!]!
+
+  """User feedback on this crisis."""
+  feedbacks: [UserFeedback!]!
+
+  """General location of the crisis."""
+  generalLocation: Location
+  id: String!
+
+  """Needs associated with the crisis (JSON structure)."""
+  needs: JSON!
+
+  """Population directly affected by linked events (BigInt as string)."""
+  populationAffected: String
+
+  """
+  Total population residing within the admin areas of linked events (BigInt as string).
+  """
+  populationInArea: String
+
+  """
+  Forward-looking scenarios generated by the LLM enrichment task.
+  Shape: { most_likely, best_case, worst_case, description }. Null until
+  the enrichment task runs.
+  """
+  scenarios: JSON
+
+  """Severity score (aggregated from linked events)."""
+  severity: Float!
+  summary: String
+  title: String
+
+  """
+  When the crisis was last written to — bumped automatically by Prisma
+  on every update path (title / description / population / attachments
+  / event-linkage / needs / scenarios). Useful for cache invalidation
+  and "recently updated" surfaces.
+  """
+  updatedAt: DateTime!
+}
+
+"""
+Durable enrichment status for the Dagster drain. PENDING = needs
+(re)enrichment (set on crisis create / event add / event remove);
+ENRICHED = narrative/scenarios/needs-analysis current.
+"""
+enum CrisisEnrichmentStatus {
+  ENRICHED
+  PENDING
+}
+
+"""
+Estimated current totals for a country bucket (ADR-0006 §4). Each metric is
+`null` when there is no anchoring stock in scope to accrue flows onto.
+"""
+type CurrentTotals {
+  """IDP displacement: latest `idp_stock` + `new_displacements` since T₀."""
+  displacement: StockFlowEstimate
+
+  """Returns: latest `returnee_stock` + `new_returns` since T₀."""
+  returns: StockFlowEstimate
+}
+
+type DailyActivityCount {
+  counts: ActivityCountsByAction!
+
+  """YYYY-MM-DD in UTC."""
+  date: String!
+  total: Int!
+}
+
+"""An external data source that feeds signals into the system."""
+type DataSource {
+  """Base URL of the data source API."""
+  baseUrl: String
+  createdAt: DateTime!
+  id: String!
+
+  """URL with more information about this source."""
+  infoUrl: String
+  isActive: Boolean!
+  name: String!
+
+  """
+  NATO Admiralty-style source-reliability grade, 1 (least) – 4 (most).
+  Null = ungraded; the data-quality formula treats null as 1. See clear-pipeline ADR-0004.
+  """
+  reliability: Int
+
+  """Signals collected from this data source."""
+  signals: [Signal!]!
+
+  """
+  Alias set for source-name normalisation — variants that resolve to this
+  same source (e.g. "IOM DTM" / "Displacement Tracking Matrix" / "DTM").
+  """
+  synonyms: [String!]!
+
+  """Source type identifier (e.g. satellite, sensor, manual)."""
+  type: String!
+  updatedAt: DateTime!
+}
+
+"""
+Half-open date window (from inclusive, to exclusive) used to
+filter `searchKnowledgebase` by the chunk's extracted event
+window. Chunks whose time_range overlaps the window match.
+"""
+input DateRangeInput {
+  from: DateTime
+  to: DateTime
+}
+
+"""ISO 8601 date-time string (e.g. 2024-01-15T09:30:00.000Z)."""
+scalar DateTime
+
+"""One day in a DAU time series."""
+type DauPoint {
+  """ISO date (YYYY-MM-DD, UTC)."""
+  date: String!
+
+  """Number of distinct users who logged in on this date."""
+  uniqueUsers: Int!
+}
+
+"""Processing status of a detection (retained for potential future use)."""
+enum DetectionStatus {
+  ignored
+  processed
+  raw
+}
+
+"""A level-1 category with its level-2 groups."""
+type DisasterLevel1 {
+  groups: [DisasterLevel2!]!
+  name: String!
+}
+
+"""A level-2 group with its distinct classification codes."""
+type DisasterLevel2 {
+  """Classification codes belonging to this level-2 group (usually one)."""
+  codes: [String!]!
+  name: String!
+
+  """Level-3 sub-types under this level-2 group."""
+  subTypes: [DisasterType!]!
+}
+
+"""
+A disaster classification in a 3-level hierarchy (level1 > level2 > level3).
+Events store arrays of codes (GLIDE or CLEAR IDs).
+"""
+type DisasterType {
+  """Level-1 category (legacy — same as level1)."""
+  disasterClass: String!
+
+  """Level-3 granular sub-type (e.g. "peaceful protest")."""
+  disasterType: String!
+
+  """Classification code — may be a GLIDE number or a CLEAR id."""
+  glideNumber: String!
+  id: String!
+
+  """Identifier system: "glide_number" or "clear_id"."""
+  idType: String!
+
+  """Top-level category (e.g. "natural hazard", "conflict")."""
+  level1: String!
+
+  """Mid-level group (e.g. "protests", "battles")."""
+  level2: String!
+}
+
+enum EntityKind {
+  alert
+  event
+  signal
+}
+
+type EntityStats {
+  """Buckets when groupBy != none. Empty when groupBy = none."""
+  buckets: [StatsBucket!]!
+
+  """Total matching the filter, regardless of groupBy."""
+  total: Int!
+}
+
+input EntityStatsInput {
+  entity: EntityKind!
+  eventTypes: [String!]
+  from: DateTime
+  groupBy: StatsGroupBy
+  includeDummy: Boolean
+  locationId: String
+  severityMax: Int
+  severityMin: Int
+  teamId: String
+  to: DateTime
+}
+
+"""An event grouping related signals into a coherent narrative."""
+type Event {
+  """Alerts created from this event."""
+  alerts: [Alert!]!
+
+  """Aggregated casualties for the event (max across constituent signals)."""
+  casualties: Int
+
+  """User comments on this event."""
+  comments: [UserComment!]!
+  description: String
+
+  """LLM-generated signal descriptions as JSON."""
+  descriptionSignals: JSON
+
+  """Destination location of the event."""
+  destinationLocation: Location
+
+  """Escalations by users."""
+  escalations: [EventEscalation!]!
+
+  """User feedback on this event."""
+  feedbacks: [UserFeedback!]!
+  firstSignalCreatedAt: DateTime!
+
+  """General location (when no origin/destination)."""
+  generalLocation: Location
+  id: String!
+
+  """Whether this is seed/demo data."""
+  isDummy: Boolean!
+  lastSignalCreatedAt: DateTime!
+
+  """Origin location of the event."""
+  originLocation: Location
+
+  """Estimated population affected."""
+  populationAffected: String
+
+  """Estimated population displaced by the event (BigInt as string)."""
+  populationDisplaced: String
+  rank: Float!
+
+  """
+  Location of the event's FIRST signal (the one recorded in
+  `firstSignalCreatedAt`) — a single point ready to drop as a map
+  marker, so a client doesn't have to fetch every signal and pick one.
+  The first non-null of the signal's origin → destination → general
+  location; null when the first signal has no located point.
+  Requires any authenticated content reader.
+  """
+  representativePoint: Location
+
+  """Severity score (1–5). Aggregated from signal severities."""
+  severity: Int
+
+  """Signals linked to this event."""
+  signals: [Signal!]!
+
+  """
+  When the real-world event actually STARTED (its onset) — parsed from the
+  signal text, distinct from `validFrom`/`firstSignalCreatedAt` (record +
+  signal-collection times). Null when no onset could be resolved.
+  """
+  startedAt: DateTime
+  title: String
+
+  """Event type tags."""
+  types: [String!]!
+  validFrom: DateTime!
+  validTo: DateTime!
+}
+
+"""Link between a crisis and an event."""
+type EventCrisis {
+  collectedAt: DateTime!
+  crisis: Crisis!
+  crisisId: String!
+  event: Event!
+  eventId: String!
+  id: String!
+}
+
+"""Tracks a user escalating an event, optionally to a crisis."""
+type EventEscalation {
+  event: Event!
+  id: String!
+
+  """Whether this has been escalated to a crisis."""
+  isCrisis: Boolean!
+  user: User!
+  validFrom: DateTime!
+  validTo: DateTime!
+}
+
+enum EventOrderBy {
+  """Oldest first by firstSignalCreatedAt."""
+  CREATED_ASC
+
+  """Newest first by firstSignalCreatedAt."""
+  CREATED_DESC
+
+  """Oldest signal first (lastSignalCreatedAt)."""
+  LAST_SIGNAL_ASC
+
+  """Newest signal first (lastSignalCreatedAt)."""
+  LAST_SIGNAL_DESC
+  SEVERITY_ASC
+  SEVERITY_DESC
+}
+
+type EventsPage {
+  hasMore: Boolean!
+  items: [Event!]!
+  totalCount: Int!
+}
+
+input EventsPageInput {
+  eventTypes: [String!]
+
+  """Filter on event.firstSignalCreatedAt — inclusive."""
+  from: DateTime
+  includeDummy: Boolean
+  limit: Int
+  locationId: String
+  offset: Int
+  orderBy: EventOrderBy
+  severityMax: Int
+  severityMin: Int
+  teamId: String
+  to: DateTime
+}
+
+"""A feature toggle that controls runtime behavior."""
+type FeatureFlag {
+  enabled: Boolean!
+  id: Int!
+
+  """Unique key used to look up this flag (e.g. dark_mode)."""
+  key: String!
+  updatedAt: DateTime!
+}
+
+"""
+Input for findOrCreateLandmarkL4. Drives geoparser-based L4 promotion
+in the signal-ingestion pipeline.
+"""
+input FindOrCreateLandmarkL4Input {
+  """
+  'landmark' or 'admin'. Drives the reuse strategy: landmarks reuse by
+  exact name, admins reuse by proximity (≤100m) within the same A2.
+  """
+  kind: String!
+
+  """Candidate latitude (from the geocoder)."""
+  lat: Float!
+
+  """Candidate longitude (from the geocoder)."""
+  lng: Float!
+
+  """
+  Display name to use when creating a new L4 (e.g., 'Nyala Airport').
+  Reuse for kind='landmark' is keyed on a case-insensitive match of this
+  field within the candidate's containing A2.
+  """
+  name: String!
+
+  """
+  Source coordinate's latitude. When provided, the resolver verifies the
+  candidate's A2 matches the source's A2 — a mismatch aborts the promotion.
+  """
+  sourceLat: Float
+
+  """Source coordinate's longitude. See sourceLat."""
+  sourceLng: Float
+}
+
+"""Outcome of findOrCreateLandmarkL4."""
+type FindOrCreateLandmarkL4Result {
+  """
+  Set to 'different_a2' when the candidate and source coords resolve to
+  different containing A2s. Null on success.
+  """
+  abortedReason: String
+
+  """The resolved L4 id. Null when the same-A2 safety check aborts."""
+  locationId: String
+
+  """
+  Provenance tag of the resolved L4 ('landmark-geocoded', 'gps', etc).
+  Null when the call aborted without producing a row.
+  """
+  pointType: String
+
+  """
+  True when the call resolved to an existing L4, false when a new one
+  was created. Meaningless when locationId is null.
+  """
+  reused: Boolean!
+}
+
+"""How often a user receives alert notifications."""
+enum Frequency {
+  daily
+  immediately
+  monthly
+  weekly
+}
+
+"""
+A GeoNames gazetteer match for a place name. Coordinates come straight
+from GeoNames — callers still validate them (e.g. the same-A2 check
+against a signal's source coordinates) before trusting a fuzzy hit.
+"""
+type GazetteerHit {
+  """ISO-3166-1 alpha-2 (SD, VE, AF)."""
+  countryCode: String!
+
+  """True when matched exactly on the normalised name, false when fuzzy."""
+  exact: Boolean!
+
+  """
+  GeoNames feature class: A=admin area, P=populated place, H=hydro,
+  L=area, S=spot/POI, T=terrain, … The resolver prefers P/A.
+  """
+  featureClass: String
+  featureCode: String
+  geonamesId: Int!
+  latitude: Float!
+  longitude: Float!
+  name: String!
+  population: Float!
+
+  """
+  Match confidence 0–1: 1.0 for an exact normalised-name hit, else the
+  pg_trgm similarity of the best fuzzy match.
+  """
+  score: Float!
+}
+
+scalar GeoJSON
+
+"""
+Assignable global platform roles. `pending` is not in this
+enum — those users must go through `approveUser` first.
+"""
+enum GlobalRole {
+  admin
+  analyst
+  viewer
+}
+
+"""
+Result of a chat-export ingest (also returned by the REST upload
+route as JSON).
+"""
+type GroundIngestResult {
+  created: Int!
+  mediaStored: Int!
+  mediaUnmatched: [String!]!
+  skipped: Int!
+}
+
+"""
+A staged Signal: a canonical message parsed from a WhatsApp source,
+held in the ground staging tier until its thread is reviewed. Text is
+phone-number-redacted at persistence. senderName is private-tier data and
+is scrubbed from anything promoted to the signals graph.
+"""
+type GroundMessage {
+  """
+  "field_report" | "news_digest" | "operational" | "chatter"; null
+  until the pipeline classification task labels the message.
+  """
+  classification: String
+  createdAt: DateTime!
+
+  """Idempotency id, scheme "whatsapp:{groupJid}:{messageId}"."""
+  externalId: String!
+  groundSourceId: String!
+  id: ID!
+  isEdited: Boolean!
+
+  """S3 keys of stored attachments."""
+  mediaKeys: [String!]!
+
+  """Attachment filenames referenced by the export."""
+  mediaRefs: [String!]!
+
+  """
+  Presigned GET URLs for mediaKeys (1 h expiry), generated at read
+  time — URLs are never stored.
+  """
+  mediaUrls: [String!]!
+
+  """
+  Media the export omitted ("image omitted") — the message still
+  counts as a media message.
+  """
+  omittedMediaCount: Int!
+
+  """Raw sender display name. Private tier only — never promoted."""
+  senderName: String
+
+  """Pseudonymous per-(source, sender) reference, e.g. "s_ab12cd34ef56"."""
+  senderRef: String!
+  sentAt: DateTime!
+
+  """Message text (redacted). Empty for caption-less media messages."""
+  text: String!
+  threadId: String
+
+  """
+  Contributor's own uncertainty tag ("unconfirmed", "rumour"),
+  preserved from the source text.
+  """
+  uncertainty: String
+}
+
+"""One classification write-back from the pipeline worker."""
+input GroundMessageClassificationInput {
+  """"field_report" | "news_digest" | "operational" | "chatter"."""
+  classification: String!
+  messageId: String!
+
+  """
+  Pipeline-detected uncertainty tag. Null/omitted leaves the
+  ingest-extracted marker untouched.
+  """
+  uncertaintyMarker: String
+}
+
+"""
+Pipeline-facing projection of a staged Signal for the
+classification/threading worker (clear-pipeline's
+classify_ground_messages task). Deliberately excludes senderName —
+the pipeline never sees private-tier identity, only the pseudonymous
+senderRef.
+"""
+type GroundMessageForClassification {
+  """Current label, null while unclassified."""
+  classification: String
+
+  """
+  True when the message carries stored media, export-referenced
+  attachments, or export-omitted media.
+  """
+  hasMedia: Boolean!
+  id: ID!
+  senderRef: String!
+  sentAt: DateTime!
+  text: String!
+
+  """Current thread (placeholder or pipeline-built)."""
+  threadId: String
+}
+
+"""
+Per-source policy record for ground intelligence (WhatsApp groups,
+future hotline). Carries the consent scope, privacy default, reviewer
+roles, and retention rule for everything ingested from the source. The
+whole ground staging tier is private: admin/analyst only.
+"""
+type GroundSource {
+  consentRecordedAt: DateTime
+
+  """Who recorded/gave the consent (person name/role, not a user id)."""
+  consentRecordedBy: String
+
+  """
+  What the source's members consented to (free text, e.g. "links and
+  resources only"). Ingest policy is judged against this record.
+  """
+  consentScope: String
+  createdAt: DateTime!
+  id: ID!
+  isActive: Boolean!
+
+  """Source kind: "staff_group" | "partner_group" | "hotline"."""
+  kind: String!
+  name: String!
+
+  """Review default for derived threads. V1: always "private"."""
+  privacyDefault: String!
+
+  """Free-text retention rule; enforcement is operational in V1."""
+  retentionRule: String
+
+  """Global roles allowed to review threads from this source."""
+  reviewerRoles: [String!]!
+
+  """Transport binding — WhatsApp group JID, or hotline number."""
+  transportId: String!
+  updatedAt: DateTime!
+}
+
+"""
+A thread — a cluster of staged Signals — in the review queue. V1
+threads are one-per-message placeholders until the pipeline threading
+task clusters them. Lifecycle state models the correction chain; review
+state is the human gate in front of the signals graph. An approved
+thread is promoted and becomes a Signal.
+"""
+type GroundThread {
+  createdAt: DateTime!
+  groundSourceId: String!
+  id: ID!
+
+  """"reported" | "updated" | "confirmed" | "corrected" | "retracted"."""
+  lifecycleState: String!
+
+  """
+  Ids of the thread's messages, oldest first. The pipeline worker
+  selects this (via groundThreadsForSource) instead of `messages` —
+  it carries no message content and no sender identity.
+  """
+  messageIds: [String!]!
+  messages: [GroundMessage!]!
+
+  """
+  Id of the `signals` row created when this thread was promoted
+  (approved_public only).
+  """
+  promotedSignalId: String
+  reviewNote: String
+
+  """"unverified" | "approved_private" | "approved_public" | "rejected"."""
+  reviewState: String!
+  reviewedAt: DateTime
+
+  """Auth user id of the reviewer who last transitioned reviewState."""
+  reviewedBy: String
+  source: GroundSource!
+  title: String
+  updatedAt: DateTime!
+}
+
+"""
+One thread (a cluster of staged Signals) produced by the pipeline
+threading task. Its messageIds are re-pointed at the thread, replacing
+their V1 one-per-message placeholder threads. With `threadId` set,
+the input APPENDS to that existing thread (cross-run threading: late
+corrections/retractions join the thread they belong to) instead of
+creating a new one.
+"""
+input GroundThreadUpsertInput {
+  groundSourceId: String!
+
+  """"reported" | "updated" | "confirmed" | "corrected" | "retracted"."""
+  lifecycleState: String!
+  messageIds: [String!]!
+
+  """
+  Optional target thread for cross-run appends. When set, messageIds
+  are appended to this thread and its lifecycleState + title are
+  updated — provided the thread is not yet promoted (reviewState !=
+  "approved_public" and no promotedSignalId) and belongs to
+  groundSourceId. A promoted/terminal (or unknown/wrong-source) target
+  is never mutated: a NEW thread is created instead, with a warning.
+  """
+  threadId: String
+  title: String!
+}
+
+"""
+An invitation to join an organisation, with one or more team assignments.
+"""
+type Invitation {
+  acceptedAt: DateTime
+  createdAt: DateTime!
+  email: String!
+  expiresAt: DateTime!
+  id: String!
+  invitedBy: User!
+  organisation: Organisation!
+
+  """Organisation role assigned on acceptance."""
+  role: String!
+
+  """Computed from acceptedAt and expiresAt."""
+  status: InvitationStatus!
+
+  """
+  Single team — legacy field, populated only for invitations created
+  before the multi-team join existed. New invitations use `teams`.
+  """
+  team: Team
+
+  """Legacy single-team role. Use `teams` for new invitations."""
+  teamRole: String
+
+  """
+  Team assignments granted to the invitee on acceptance. Empty list
+  means org-only access (no team).
+  """
+  teams: [InvitationTeam!]!
+}
+
+"""Public invitation info returned by token lookup (limited fields)."""
+type InvitationInfo {
+  email: String!
+  expiresAt: DateTime!
+  id: String!
+  organisationName: String!
+  role: String!
+  status: InvitationStatus!
+
+  """Legacy single-team name (populated only for old invitations)."""
+  teamName: String
+
+  """Legacy single-team role (populated only for old invitations)."""
+  teamRole: String
+
+  """Team assignments the invitee will be granted on acceptance."""
+  teams: [InvitationInfoTeam!]!
+}
+
+"""One (team, role) assignment as returned by the public token lookup."""
+type InvitationInfoTeam {
+  teamId: String!
+  teamName: String!
+  teamRole: TeamMemberRole!
+}
+
+"""Status of an invitation."""
+enum InvitationStatus {
+  accepted
+  expired
+  pending
+}
+
+"""One (team, role) assignment attached to an invitation."""
+type InvitationTeam {
+  team: Team!
+  teamRole: TeamMemberRole!
+}
+
+input InviteUserInput {
+  email: String!
+  organisationId: String!
+
+  """Organisation role: org_admin, member (default: member)."""
+  role: String
+
+  """
+  Team assignments — at least one team is required. Each entry grants the
+  invitee membership in that team with the given role on acceptance.
+  """
+  teams: [TeamAssignmentInput!]!
+}
+
+"""
+Arbitrary JSON value — objects, arrays, strings, numbers, booleans, or null.
+"""
+scalar JSON
+
+"""
+One chunk written into the knowledgebase table. Mirrors the
+columns exactly (minus `lexicalTsv`, which the DB trigger fills
+from `embeddedText`, and `createdAt` which uses the column
+default).
+"""
+input KnowledgebaseChunkInput {
+  """0-indexed position within the report."""
+  chunkIndex: Int!
+
+  """Raw excerpt text — what a UI would render on a search hit."""
+  chunkText: String!
+
+  """
+  LLM-generated context prefix (empty string when contextualization
+  is skipped).
+  """
+  contextPrefix: String!
+
+  """
+  `contextPrefix + "\n\n" + chunkText` — what was actually
+  embedded and tokenised.
+  """
+  embeddedText: String!
+
+  """
+  1024-dim dense embedding. The API validates length and casts to
+  `vector(1024)` before insert.
+  """
+  embedding: [Float!]!
+  embeddingModel: String!
+
+  """
+  Provenance for the embedding — mirrors the DB columns so a
+  later re-embed backfill can filter by (provider, model).
+  """
+  embeddingProvider: String!
+
+  """Multi-hazard tags — GLIDE codes or free-text categories."""
+  eventTypes: [String!]!
+  figureKind: String
+
+  """
+  Infographic capture: set only when this chunk is a figure
+  transcription merged into the KB. `figureS3Key` is the cropped
+  image's S3 key (join key to `report_figures`); `figureKind` is
+  that figure's kind. Both null for ordinary text chunks.
+  """
+  figureS3Key: String
+
+  """Resolved `locations.id` refs (post-lookup)."""
+  locationIds: [String!]!
+
+  """Raw pcodes the LLM emitted but the resolver couldn't match."""
+  locationPcodes: [String!]!
+
+  """
+  NRC SAF sectors: Shelter, WASH, Protection, Health,
+  Food Security, Education.
+  """
+  needSectors: [String!]!
+  pageEnd: Int!
+
+  """Inclusive PDF page span this chunk covers."""
+  pageStart: Int!
+  timeRangeEnd: DateTime
+
+  """Optional event window described by the chunk."""
+  timeRangeStart: DateTime
+}
+
+"""
+Optional filters applied BEFORE the retrieval step — array
+filters use overlap semantics (any-of), the time range uses
+inclusive intersection. Leave a field null to skip that filter.
+"""
+input KnowledgebaseFilters {
+  """
+  Scope to one country: keep only chunks tagged with a location in this
+  A0's subtree (itself or any descendant admin unit). Chunk locations are
+  resolved to leaf admin ids, so a bare `locationIds=[A0]` would miss them —
+  this expands the A0 to its subtree server-side via the locations tree. The
+  situation-analysis RAG uses this so a country's analysis never cites reports
+  about another country.
+  """
+  countryLocationId: String
+
+  """
+  Restrict to rows written by the currently-configured
+  embedding provider + model. Default true — mixing embedding
+  spaces yields meaningless distances. Set false only when
+  inspecting historical rows via BM25-only search (no vector
+  step will be run for filtered-out rows).
+  """
+  currentEmbeddingModelOnly: Boolean = true
+
+  """Match rows tagged with ANY of these event-type tags."""
+  eventTypes: [String!]
+
+  """Match rows tagged with ANY of these `locations.id` values."""
+  locationIds: [String!]
+
+  """Match rows tagged with ANY of these SAF sectors."""
+  needSectors: [String!]
+
+  """Match rows whose extracted event window overlaps this range."""
+  timeRange: DateRangeInput
+}
+
+"""
+One hit from `searchKnowledgebase`. Carries enough source
+provenance (report title, url, page range) that a UI can render a
+citation without a follow-up fetch, plus the parameter arrays so
+the caller can highlight which filters matched.
+"""
+type KnowledgebaseHit {
+  chunkText: String!
+  eventTypes: [String!]!
+  figureKind: String
+
+  """
+  When this hit is a figure transcription, the cropped image's S3 key
+  and its kind (chart/map/table/infographic/photo) — null for text hits.
+  A consumer generating an infographic fetches this image and attaches it
+  to the LLM call; plain Q&A ignores it. Kept as a lightweight REFERENCE
+  (no bytes) so retrieval never pays S3 cost.
+  """
+  figureS3Key: String
+  id: String!
+  locationIds: [String!]!
+  needSectors: [String!]!
+  pageEnd: Int!
+  pageStart: Int!
+  publishedAt: DateTime
+  reportId: String!
+  reportTitle: String!
+
+  """
+  RRF-fused score. Larger is better. Not directly comparable
+  across queries — the constant `k=60` bounds each per-row term
+  to 1/(k+1)=~0.016, so a two-source hit tops out near 0.032.
+  """
+  score: Float!
+  sourceUrl: String!
+}
+
+"""
+One Dagster run kicked off by `uploadKnowledgebaseDocument`.
+Returned by both the mutation (initial launch) and the polling
+query. `reportId` / `reportTitle` / `s3Key` are populated from
+the run's Dagster tags, which the mutation attaches at launch time —
+a client that lost track of the initial payload can still recover
+the identity of the document being ingested.
+"""
+type KnowledgebaseIngestJob {
+  endedAt: DateTime
+
+  """
+  The knowledgebase report_id the ingest is targeting. Same value
+  surfaces on `Knowledgebase.reportId` once the run succeeds.
+  """
+  reportId: String
+  reportTitle: String
+
+  """
+  Opaque Dagster run id. Pass to `knowledgebaseIngestJob` to
+  poll for completion.
+  """
+  runId: String!
+  s3Key: String
+  startedAt: DateTime
+  status: KnowledgebaseIngestStatus!
+}
+
+"""
+Coarse-grained status of a manual-ingest Dagster run. Dagster's
+own RunStatus enum is finer-grained (STARTING / MANAGED / CANCELING
+/ …) — we fold those down to what a UI actually needs to render.
+"""
+enum KnowledgebaseIngestStatus {
+  CANCELED
+  FAILURE
+  QUEUED
+  STARTED
+  SUCCESS
+
+  """
+  Dagster is offline, the run id doesn't exist, or the run status
+  is one this API doesn't recognise. Non-terminal — poll again.
+  """
+  UNKNOWN
+}
+
+"""
+Per-locale payload accepted by upsertTranslations. data mirrors the
+canonical entity's JSON shape exactly for the given locale — e.g. for
+a crisis it carries the localized title/summary/scenarios/needs with
+the same keys/nesting the English columns use.
+"""
+input LocaleTranslationInput {
+  """Translated payload. Shape mirrors the canonical entity per type."""
+  data: JSON!
+
+  """BCP-47 lowercased — 'ar', 'fr'. 'en' is rejected (canonical)."""
+  locale: String!
+
+  """
+  Per-field SHA-256 hashes of the canonical English source used to produce `data`. Stored so the pipeline can detect which canonical field changed and re-translate only that field on the next pass.
+  """
+  sourceHashes: JSON!
+}
+
+"""A geographic location in a hierarchy (country > state > city, etc.)."""
+type Location {
+  """IDs of all ancestor locations (parent, grandparent, etc.)."""
+  ancestorIds: [String!]!
+
+  """All ancestor locations (parent, grandparent, etc.)."""
+  ancestors: [Location!]!
+
+  """Child locations one level below."""
+  children: [Location!]!
+
+  """When the row was first created."""
+  createdAt: DateTime!
+
+  """GeoNames identifier."""
+  geoId: Int
+
+  """Geometry as GeoJSON (Point or MultiPolygon)."""
+  geometry: GeoJSON
+  id: String!
+
+  """Hierarchy level: 0 = country, 1 = state/province, 2 = city, etc."""
+  level: Int!
+
+  """
+  Per-type metadata (IOM DTM, INFORM, etc). Pass a type argument to filter.
+  By default only the current value is returned (validTo is null).
+  Pass current: false to include the full history.
+  """
+  metadata(current: Boolean, type: String): [LocationMetadata!]!
+  name: String!
+
+  """OpenStreetMap identifier."""
+  osmId: String
+
+  """P-Code identifier."""
+  pCode: String
+
+  """Parent location in the hierarchy."""
+  parent: Location
+
+  """
+  Provenance of this location's geometry. Notable values:
+  - 'landmark-geocoded': L4 created by the pipeline geoparser from a
+    landmark/place name resolved via Nominatim. The location's `name`
+    field is meaningful for display (e.g., 'Nyala Airport').
+  - 'gps' / 'source-gps' / 'centroid' / 'source-centroid': see schema
+    documentation on the Prisma model.
+  - null: legacy rows (most signal-title L4s from `createPointLocation`).
+  """
+  pointType: String
+
+  """
+  Population residing within this location's geometry. Null for point locations or when not yet computed.
+  """
+  population: String
+
+  """Last write — useful for tracking admin polygon (re-)loads."""
+  updatedAt: DateTime!
+}
+
+"""
+Arbitrary per-location metadata keyed by type. History is preserved:
+writes close the current row (set validTo = now()) and insert a new one.
+The CURRENT value for a (location, type) is the row where validTo is null.
+"""
+type LocationMetadata {
+  createdAt: DateTime!
+
+  """Source-specific payload stored as JSON."""
+  data: JSON!
+  id: String!
+  location: Location!
+
+  """Free-form type string (e.g. "iom_dtm_displacement", "acaps_inform")."""
+  type: String!
+  updatedAt: DateTime!
+
+  """When this value became current."""
+  validFrom: DateTime!
+
+  """When this value was superseded. Null means still current."""
+  validTo: DateTime
+}
+
+"""One month in a MAU time series."""
+type MauPoint {
+  """ISO month (YYYY-MM, UTC)."""
+  month: String!
+
+  """
+  Number of distinct users who logged in at least once during the
+  calendar month.
+  """
+  uniqueUsers: Int!
+}
+
+type Mutation {
+  """
+  Accept an invitation. Creates user account if new, adds to org and team.
+  """
+  acceptInvite(input: AcceptInviteInput!): Boolean!
+
+  """Add a comment to a signal or event."""
+  addComment(input: AddCommentInput!): UserComment!
+
+  """
+  Append S3 keys to a crisis's attachments list. Idempotent — keys
+  already present in the list are skipped silently. Returns the updated
+  crisis with the new list.
+  """
+  addCrisisAttachments(id: String!, keys: [String!]!): Crisis!
+
+  """
+  Add an existing event to an existing crisis. Idempotent - returns the existing link if one already exists.
+  """
+  addEventToCrisis(crisisId: String!, eventId: String!): EventCrisis!
+
+  """Add feedback (rating + optional text) to a signal or event."""
+  addFeedback(input: AddFeedbackInput!): UserFeedback!
+
+  """Add a member to an organisation."""
+  addOrgMember(orgId: String!, role: OrgMemberRole, userId: String!): OrgMember!
+
+  """Add a member to a team."""
+  addTeamMember(role: TeamMemberRole, teamId: String!, userId: String!): TeamMember!
+
+  """
+  Approve a self-signed-up user. Flips their role from `pending`
+  to `viewer` (granting read access to signals / events / alerts /
+  crises) and moves their CRM contact from the prospects collection
+  into the approved collection — which fires Exponential's welcome
+  automation. The local role flip is authoritative; CRM updates are
+  best-effort and surface as fields on the result so the admin UI
+  can offer a retry. Requires global `admin`.
+  """
+  approveUser(userId: String!): ApproveUserResult!
+
+  """
+  Archive published alerts whose event.lastSignalCreatedAt is older than
+  olderThanDays (default: 14). Sets alerts.status to 'archived'. Admin or
+  pipeline only. Returns the number of rows affected.
+  """
+  archiveStaleAlerts(olderThanDays: Int): ArchiveStaleAlertsResult!
+
+  """Cancel a pending invitation."""
+  cancelInvite(id: String!): Boolean!
+
+  """Create an alert from an event, notifying subscribers."""
+  createAlert(input: CreateAlertInput!): Alert!
+
+  """Create a new API key for the authenticated user."""
+  createApiKey(input: CreateApiKeyInput!): CreateApiKeyPayload!
+
+  """
+  Create notifications for multiple users at once. Returns the count of notifications created.
+  """
+  createBulkNotifications(input: CreateBulkNotificationsInput!): Int!
+
+  """
+  Create a new crisis from a list of event IDs. Links all provided events to the new crisis.
+  """
+  createCrisisFromEvents(input: CreateCrisisFromEventsInput!): Crisis!
+
+  """Create a new data source."""
+  createDataSource(input: CreateDataSourceInput!): DataSource!
+
+  """
+  Provision a developer account from an approved waitlist application.
+  Creates the user, mints an initial API key (no expiry), issues a
+  long-lived set-password verification token, and sends the welcome
+  email. Requires global `admin`. The CRM write-back is the caller's
+  responsibility.
+  """
+  createDevUser(input: CreateDevUserInput!): CreateDevUserResult!
+
+  """Create a new event from signals."""
+  createEvent(input: CreateEventInput!): Event!
+
+  """
+  Create a ground source — the per-source policy record (consent
+  scope, privacy default, reviewer roles, retention) that every ingest
+  from a WhatsApp group or hotline is gated on. Admin only; group
+  kinds require a complete consent record (consentScope +
+  consentRecordedAt + consentRecordedBy).
+  """
+  createGroundSource(input: CreateGroundSourceInput!): GroundSource!
+
+  """Create a new location."""
+  createLocation(input: CreateLocationInput!): Location!
+
+  """
+  Create a manual signal from a field officer, partner, or government source.
+  Persists the signal and sends it to the pipeline for event grouping and auto-escalation.
+  """
+  createManualSignal(input: CreateManualSignalInput!): Signal!
+
+  """Create a notification for a user."""
+  createNotification(input: CreateNotificationInput!): Notification!
+
+  """Create a new organisation. The creator becomes the first org_admin."""
+  createOrganisation(input: CreateOrganisationInput!): Organisation!
+
+  """
+  Mint a Redis-backed share token for an event. The snapshot of the
+  event's safe-to-share fields is stored under a key derived from
+  the eventId + token and lives for `ttlDays` days (default 30, max
+  90). Anyone who has the resulting URL can read the snapshot via
+  the `publicEvent(eventId, token)` query. Caller must be able to
+  read the event normally (admin / analyst / viewer); pending users
+  are blocked.
+  """
+  createPublicEventLink(input: CreatePublicEventLinkInput!): CreatePublicEventLinkResult!
+
+  """Create a signal from a data source."""
+  createSignal(input: CreateSignalInput!): Signal!
+
+  """
+  Create a new team within an organisation. Requires org_admin (or platform admin).
+  """
+  createTeam(input: CreateTeamInput!): Team!
+
+  """
+  Create a new webhook subscription. The response is the only place
+  the plaintext secret is returned — persist it in your own records
+  (e.g. downstream verifier config) at this moment. To retrieve later,
+  use rotateWebhookSubscriptionSecret which generates a fresh one.
+  """
+  createWebhookSubscription(input: CreateWebhookSubscriptionInput!): WebhookSubscription!
+
+  """Delete an alert."""
+  deleteAlert(id: String!): Boolean!
+
+  """Delete your own comment."""
+  deleteComment(id: String!): Boolean!
+
+  """
+  Delete a crisis. Cascades the eventCrises join rows, user feedback,
+  and user comments via the FK constraints. Any authenticated user.
+  """
+  deleteCrisis(id: String!): Boolean!
+
+  """Delete a data source."""
+  deleteDataSource(id: String!): Boolean!
+
+  """Delete an event."""
+  deleteEvent(id: String!): Boolean!
+
+  """Delete your own feedback."""
+  deleteFeedback(id: String!): Boolean!
+
+  """Delete a location."""
+  deleteLocation(id: String!): Boolean!
+
+  """Delete a location's metadata entry for a given type (admin only)."""
+  deleteLocationMetadata(locationId: String!, type: String!): Boolean!
+
+  """Delete a notification."""
+  deleteNotification(id: String!): Boolean!
+
+  """
+  Delete an organisation and all its teams, members, and invitations. Requires global admin.
+  """
+  deleteOrganisation(id: String!): Boolean!
+
+  """Delete a signal."""
+  deleteSignal(id: String!): Boolean!
+
+  """Delete a team."""
+  deleteTeam(id: String!): Boolean!
+
+  """Permanently delete a subscription and all its delivery history."""
+  deleteWebhookSubscription(id: String!): Boolean!
+
+  """
+  Enqueue an entity for (re)translation at a locale — the durable replacement
+  for the lazy-on-read Celery enqueue. Idempotent (one row per entity+locale).
+  Admin/pipeline only.
+  """
+  enqueueTranslation(entityId: String!, entityType: String!, locale: String!): TranslationQueueItem!
+
+  """
+  Idempotently resolve a level-0 Country location by exact name, creating it
+  with a bounding-box MULTIPOLYGON geometry if absent (admin/pipeline only).
+  bbox is [minLng, minLat, maxLng, maxLat]. Returns the (found or created)
+  Country — doubles as the pipeline's name→id resolution.
+  """
+  ensureCountryLocation(bbox: [Float!]!, name: String!): Location!
+
+  """
+  Escalate an event: creates an alert (published) and records the user escalation.
+  If the event already has a published alert, just records the user escalation.
+  teamId (optional) admits a team_admin or field_coordinator on that team
+  even without a global admin/analyst role — purely an authorisation hint,
+  not stored on the event.
+  """
+  escalateEvent(eventId: String!, teamId: String, userId: String!): EventEscalation!
+
+  """
+  Find an existing level-4 location matching a geoparsed candidate, or
+  create one. Used by the clear-pipeline geoparser to promote a landmark
+  hit (e.g., "Nyala Airport") into a reusable A4 instead of letting the
+  resolver invent a fresh point-location for every signal. When sourceLat
+  and sourceLng are provided, the resolver verifies that the candidate's
+  containing A2 matches the source coord's containing A2 — on mismatch it
+  aborts with abortedReason="different_a2" so the caller can fall back to
+  source coords. Admin/pipeline only.
+  """
+  findOrCreateLandmarkL4(input: FindOrCreateLandmarkL4Input!): FindOrCreateLandmarkL4Result!
+
+  """
+  Invite a user to an organisation (and optionally a team). Sends invite email.
+  """
+  inviteUser(input: InviteUserInput!): Invitation!
+
+  """Mark all notifications as read for the authenticated user."""
+  markAllNotificationsRead: Boolean!
+
+  """
+  Mark a crisis ENRICHED for the Dagster drain — the enrichment consumer calls
+  this once narrative/scenarios/needs-analysis are current. Idempotent. Admin/pipeline only.
+  """
+  markCrisisEnriched(id: String!): Crisis!
+
+  """Mark a notification as read."""
+  markNotificationRead(id: String!): Notification!
+
+  """
+  Mark signals as done for the Dagster drain — the downstream pipeline calls
+  this after classify→group→alert. Sets status (PROCESSED by default, or FAILED)
+  and processedAt. Returns the number of rows updated. Idempotent. Admin/pipeline only.
+  """
+  markSignalsProcessed(ids: [String!]!, status: SignalStatus): Int!
+
+  """
+  Remove an entity/locale from the translation queue (explicit drain
+  completion). Returns true when a queued row was removed. upsertTranslations
+  clears the queue itself, so this is only for consumers not writing via it.
+  Admin/pipeline only.
+  """
+  markTranslated(entityId: String!, entityType: String!, locale: String!): Boolean!
+
+  """
+  Send a digest notification for multiple alerts to subscribers of the given frequency (daily/weekly/monthly).
+  """
+  notifyAlertDigest(input: AlertDigestInput!): Int!
+
+  """
+  Notify all subscribers of a single alert (immediate frequency). Matches on event types and locations.
+  """
+  notifyAlertSubscribers(input: AlertNotifyInput!): Int!
+
+  """
+  Pre-compute all four aggregation tiers (weekly × A2, monthly × A1,
+  yearly × country, all-time × country) for reports whose
+  `reportingPeriodEnd` falls in `[from, to]`. Each computed
+  bucket is inserted with `validFrom = now()`; the previous
+  "current" row for the same bucket key has its `validTo` stamped
+  in the same transaction. History rows are preserved. Admin /
+  pipeline only.
+  
+  Pass `countryLocationId` (an admin-0 location id) to SCOPE the
+  refresh to that country's subtree — only that country's buckets are
+  (re)computed (the window's reports are still scanned; the bucket step
+  filters to scopes whose admin-0 ancestor is this country). Omit it to
+  refresh every country in the window (the original global behaviour).
+  The per-country partitioned pipeline passes it so each country's run
+  recomputes only its own buckets instead of a redundant global pass.
+  An unresolvable id errors rather than silently computing nothing.
+  """
+  refreshAggregatedDatapoints(countryLocationId: String, from: DateTime!, schemaVersion: String!, to: DateTime!): RefreshAggregatedDatapointsResult!
+
+  """
+  Remove an S3 key from a crisis's attachments list. Does NOT delete
+  the underlying S3 object (operators can clean those up separately).
+  Returns the updated crisis.
+  """
+  removeCrisisAttachment(id: String!, key: String!): Crisis!
+
+  """
+  Remove an event from a crisis. Recomputes populationAffected from the
+  remaining events and dispatches the enrichment task so title/summary get
+  regenerated to reflect the new event set. If the event being removed is
+  the LAST event, deletes the crisis entirely and returns null. Otherwise
+  returns the updated crisis (title/summary still show pre-removal values
+  until the async enrichment task completes).
+  """
+  removeEventFromCrisis(crisisId: String!, eventId: String!): Crisis
+
+  """Remove a member from an organisation."""
+  removeOrgMember(orgId: String!, userId: String!): Boolean!
+
+  """Remove a member from a team."""
+  removeTeamMember(teamId: String!, userId: String!): Boolean!
+
+  """Reply to an existing comment."""
+  replyToComment(input: ReplyToCommentInput!): UserComment!
+
+  """Request an email verification link for the authenticated user."""
+  requestEmailVerification: Boolean!
+
+  """Request a password reset email (public, always returns true)."""
+  requestPasswordReset(email: String!): Boolean!
+
+  """Resend an invitation email (resets expiry to 7 days)."""
+  resendInvite(id: String!): Invitation!
+
+  """Reset password using a token from the reset email."""
+  resetPassword(newPassword: String!, token: String!): Boolean!
+
+  """
+  Idempotently resolve an organisation/source name to a data_sources id,
+  creating an ungraded row if none matches (admin/pipeline only). Matching order:
+  exact name/synonym → infoUrl (when homepage given) → pg_trgm fuzzy (>= minSimilarity,
+  default 0.6) → create. On a URL/fuzzy hit the incoming name is appended as a synonym so
+  future lookups hit exactly. Returns the resolved data_sources id. See clear-pipeline ADR-0004.
+  """
+  resolveDataSource(homepage: String, minSimilarity: Float, name: String!): String!
+
+  """
+  Re-fire a dead-lettered delivery. Resets attemptNumber to 1 and
+  schedules an immediate retry via the poller.
+  """
+  retryWebhookDelivery(id: String!): WebhookDelivery!
+
+  """
+  Review a ground thread: decision is "approve_private",
+  "approve_public", or "reject". Role-gated per source (the caller's
+  global role must appear in the source's reviewerRoles; platform
+  admins always pass). Transitions follow the V1 state machine —
+  notably approved_public is terminal. approve_public also promotes
+  the thread into the standard signals graph via createSignal, with
+  all sender identity scrubbed.
+  """
+  reviewGroundThread(decision: String!, id: String!, note: String): GroundThread!
+
+  """Revoke an API key by ID. Only the key owner or an admin can revoke."""
+  revokeApiKey(id: String!): ApiKey!
+
+  """
+  Invalidate a public share token by deleting the cached snapshot.
+  Idempotent — revoking a missing key returns true. Caller must be
+  an approved user; ownership of the original link is not checked
+  because the link is by definition unauthenticated and the only
+  state to delete is the cache entry itself.
+  """
+  revokePublicEventLink(eventId: String!, token: String!): Boolean!
+
+  """
+  Revoke every active API key for a dev user and issue a fresh one.
+  Notifies the user by email. Requires global `admin`.
+  """
+  rotateDevUserApiKey(userId: String!): RotateDevUserApiKeyResult!
+
+  """
+  Generate a new secret and invalidate the old one. Response
+  includes the new plaintext secret (same one-shot semantics as
+  create).
+  """
+  rotateWebhookSubscriptionSecret(id: String!): WebhookSubscription!
+
+  """
+  Send a synthetic test event to this subscription. Creates a
+  WebhookDelivery row and attempts delivery immediately. Payload
+  mimics GlitchTip's alert format so downstream verifiers see a
+  realistic shape.
+  """
+  sendTestWebhookEvent(id: String!): WebhookDelivery!
+
+  """
+  Set the LLM-generated NRC SAF needs analysis inside the crisis's
+  needs JSONB. Merges generalSummary and sector keys into the existing
+  object so other keys on needs are preserved. Admin/pipeline only.
+  """
+  setCrisisNeedsAnalysis(generalSummary: [String!]!, id: String!, sector: JSON!): Crisis!
+
+  """Set the authenticated user's default team (for frontend convenience)."""
+  setDefaultTeam(teamId: String!): Team!
+
+  """
+  Set the enabled state of a feature flag, identified by its string key.
+  Upserts the row so the same call works whether the key is already present.
+  Admin only — toggling features is an org-wide change, not a per-user
+  preference. Returns the persisted flag so callers can update local state
+  without an extra round-trip.
+  """
+  setFeatureFlag(enabled: Boolean!, key: String!): FeatureFlag!
+
+  """
+  Activate or deactivate a source (admin only). Deactivation is the
+  live-capture kill switch: the ingest consent gate rejects every
+  payload for an inactive source. Deliberately exempt from
+  consent-record validation so an incomplete legacy row can still be
+  shut off immediately.
+  """
+  setGroundSourceActive(id: String!, isActive: Boolean!): GroundSource!
+
+  """
+  Set the locations a team is scoped to. Replaces all existing locations.
+  """
+  setTeamLocations(locationIds: [String!]!, teamId: String!): Team!
+
+  """
+  Create or replace the open (consideration) Location challenge for a Signal.
+  Auth: any approved logged-in team member who can view the Signal. Queue only —
+  does NOT accept/reject and does NOT mutate the Signal's geometry.
+  """
+  submitSignalLocationChallenge(input: SubmitSignalLocationChallengeInput!): SignalLocationChallenge!
+
+  """Subscribe to alerts for a specific type and location."""
+  subscribeToAlerts(input: SubscribeToAlertsInput!): AlertSubscription!
+
+  """
+  Subscribe to alerts for multiple (location × alertType) combinations in a single call.
+  Returns the list of created subscriptions. Duplicates are skipped silently.
+  """
+  subscribeToAlertsBatch(input: SubscribeToAlertsBatchInput!): [AlertSubscription!]!
+
+  """Tag users in a comment."""
+  tagUsersInComment(commentId: String!, userIds: [String!]!): UserComment!
+
+  """Unsubscribe - deletes the subscription."""
+  unsubscribeFromAlerts(id: String!): Boolean!
+
+  """Update an existing alert."""
+  updateAlert(id: String!, input: UpdateAlertInput!): Alert!
+
+  """Update an existing alert subscription (channel, frequency, active)."""
+  updateAlertSubscription(id: String!, input: UpdateAlertSubscriptionInput!): AlertSubscription!
+
+  """
+  Edit the human-facing description on a crisis. The crisis's summary
+  column stores JSON of the form description+tldr — this mutation updates
+  just the description key and preserves any existing tldr bullets (which
+  the LLM enrichment task generates). Any authenticated user. Pass an
+  empty string to clear the description without disturbing the tldr.
+  """
+  updateCrisisDescription(description: String!, id: String!): Crisis!
+
+  """
+  Set a crisis's populationAffected + populationInArea (admin/pipeline only).
+  """
+  updateCrisisPopulation(id: String!, input: UpdateCrisisPopulationInput!): Crisis!
+
+  """
+  Edit a crisis's title in place. Any authenticated user. Pass an empty
+  string to clear the field.
+  """
+  updateCrisisTitle(id: String!, title: String!): Crisis!
+
+  """Update an existing data source."""
+  updateDataSource(id: String!, input: UpdateDataSourceInput!): DataSource!
+
+  """Update an existing event."""
+  updateEvent(id: String!, input: UpdateEventInput!): Event!
+
+  """
+  Update a source's policy record (admin only, partial). The merged
+  row is re-validated — a group-kind source cannot be left without a
+  complete consent record, so legacy rows must have consent supplied
+  in the same update. transportId is immutable.
+  """
+  updateGroundSource(id: String!, input: UpdateGroundSourceInput!): GroundSource!
+
+  """Update an existing location."""
+  updateLocation(id: String!, input: UpdateLocationInput!): Location!
+
+  """
+  Replace a location's geometry with the given GeoJSON (admin/pipeline only).
+  """
+  updateLocationGeometry(geometry: GeoJSON!, id: String!): Location!
+
+  """Set a location's cached population (admin/pipeline only)."""
+  updateLocationPopulation(id: String!, population: String!): Location!
+
+  """
+  Change a member's role within an organisation. Requires the caller to be
+  a platform admin or an org_admin of the target organisation.
+  """
+  updateOrgMemberRole(orgId: String!, role: OrgMemberRole!, userId: String!): OrgMember!
+
+  """
+  Update an existing organisation. Requires org_admin (or platform admin).
+  """
+  updateOrganisation(id: String!, input: UpdateOrganisationInput!): Organisation!
+
+  """Update the authenticated user's profile and notification preferences."""
+  updateProfile(input: UpdateProfileInput!): User!
+
+  """
+  Apply an in-place content revision to an existing signal (e.g. IDMC's
+  IDU rows being revised upstream — same id, changed figures/role/dates/
+  location). Only writes when input.contentHash differs from the stored
+  contentHash; a no-op retry (e.g. the pipeline's Redis seen-set re-sending
+  unchanged data) leaves the row and lastRevisedAt untouched. Admin/pipeline
+  only.
+  """
+  updateSignalContent(input: UpdateSignalContentInput!): Signal!
+
+  """
+  Attach the clear-pipeline geoparser's result to an existing signal.
+  Used for the manual-signal flow, where the signal is created via
+  createManualSignal before the pipeline has a chance to run the geoparser.
+  Stores the structured candidate verbatim; does not change locationId.
+  Admin/pipeline only.
+  """
+  updateSignalGeoparsedData(geoparsedData: JSON!, id: String!): Signal!
+
+  """
+  Set (or replace) an existing signal's generalLocation. Used by the
+  manual-signal pipeline path: when the user didn't pick a location and
+  the geoparser resolved a landmark, we promote it to an L4 via
+  findOrCreateLandmarkL4 and then wire the signal to it so downstream
+  event grouping can key on the resolved admin-2 district instead of
+  creating an isolated event. Admin/pipeline only.
+  """
+  updateSignalLocation(id: String!, locationId: String!): Signal!
+
+  """Update a signal's severity score."""
+  updateSignalSeverity(id: String!, severity: Int!): Signal!
+
+  """Update an existing team."""
+  updateTeam(id: String!, input: UpdateTeamInput!): Team!
+
+  """Update a team member's role."""
+  updateTeamMemberRole(role: TeamMemberRole!, teamId: String!, userId: String!): TeamMember!
+
+  """
+  Set a user's global platform role (`viewer`, `analyst`, or
+  `admin`). Does not approve pending users — call `approveUser`
+  first. Requires global `admin`. Cannot demote yourself or the
+  last remaining admin. This is the product write path for the
+  Users-tab dropdown on the operator app; the Developer Portal
+  HTML form hits the same service via POST
+  `/portal/admin/users/role`.
+  """
+  updateUserRole(role: GlobalRole!, userId: String!): User!
+
+  """Update a subscription. Only provide fields you want to change."""
+  updateWebhookSubscription(id: String!, input: UpdateWebhookSubscriptionInput!): WebhookSubscription!
+
+  """
+  Upload a PDF into the manual-ingest S3 inbox and trigger the
+  Dagster `process_manual_document_job` to run the extract →
+  chunk → enrich → embed → upsert chain against it.
+  
+  The report_id is derived from the file's SHA-256 (first 12 chars,
+  prefixed `manual:`) so re-uploading the same bytes is idempotent
+  — Dagster runs but the upsert path replaces the previous version
+  in place. To force a fresh row, tweak the file (any byte) or
+  switch to a scripted upload that supplies its own report_id.
+  
+  Restricted to admin / analyst — the ingest costs LLM + embedding
+  credits per document. When DAGSTER_URL is unset the mutation
+  still stages the PDF in S3 but returns a UNKNOWN-status job with
+  no runId — useful for offline dev of the upload path.
+  """
+  uploadKnowledgebaseDocument(file: Upload!, publishedAt: DateTime!, sourceUrl: String, title: String!): KnowledgebaseIngestJob!
+
+  """
+  PIPELINE CONTRACT (admin/pipeline only): write back
+  classifications from the classify_ground_messages worker. Unknown
+  messageIds are skipped with a warning. Returns the number of
+  messages updated.
+  """
+  upsertGroundMessageClassifications(inputs: [GroundMessageClassificationInput!]!): Int!
+
+  """
+  PIPELINE CONTRACT (admin/pipeline only): replace placeholder
+  threading with pipeline-built threads (clusters of staged
+  Signals). Each input creates a
+  thread (or, when `threadId` is set, APPENDS to that existing
+  thread and updates its lifecycleState + title), re-points its
+  messageIds at it, and deletes the placeholder threads that became
+  empty. Messages whose current thread has already been human-reviewed
+  (or promoted) are NEVER re-threaded, and a promoted `threadId`
+  target is never mutated (a new thread is created instead) — the
+  review gate outranks the pipeline. Returns one thread id per input,
+  in order; null where an input had no movable messages (no thread
+  created or updated).
+  """
+  upsertGroundThreads(inputs: [GroundThreadUpsertInput!]!): [String]!
+
+  """
+  Replace all knowledgebase rows for `reportId` with `chunks`.
+  Runs inside one transaction — a failed insert rolls back the
+  delete so a re-run can retry cleanly. Vector length is validated
+  against the pgvector column dimension (1024) on the server;
+  mismatched rows are rejected before the write hits Postgres.
+  Admin/pipeline only.
+  """
+  upsertKnowledgebaseChunks(chunks: [KnowledgebaseChunkInput!]!, publishedAt: DateTime!, reportId: String!, reportTitle: String!, s3Key: String!, sourceUrl: String!): UpsertKnowledgebaseResult!
+
+  """
+  Create or update a location's metadata entry for a given type (admin/pipeline only).
+  Upsert keyed by (locationId, type).
+  """
+  upsertLocationMetadata(input: UpsertLocationMetadataInput!): LocationMetadata!
+
+  """
+  Bulk-upsert multiple (locationId, type, data) rows in a single call (admin/pipeline only).
+  Returns the current row for each input. Rows whose locationId doesn't exist are
+  skipped silently. Idempotent: an input whose blob is identical to the currently-open
+  row is left untouched (no new history version), so re-running an ingest with unchanged
+  data is a no-op.
+  """
+  upsertLocationMetadataBatch(inputs: [UpsertLocationMetadataInput!]!): [LocationMetadata!]!
+
+  """
+  Upsert a Nominatim geocoder cache entry (admin/pipeline only).
+  Replaces any existing row with the same queryHash, resetting the TTL.
+  """
+  upsertNominatimCache(input: UpsertNominatimCacheInput!): NominatimCacheEntry!
+
+  """
+  Replace the `report_datapoints` row for `input.reportId`.
+  Admin / pipeline only. The dagster-quickstart datapoints
+  extraction asset is the primary caller; hand-invocation is
+  supported for backfills and re-extraction. Idempotent — the row
+  is uniquely keyed on `report_id`.
+  """
+  upsertReportDatapoints(input: UpsertReportDatapointsInput!): UpsertReportDatapointsResult!
+
+  """
+  Replace a report's captured infographics (image asset store). Pipeline-only;
+  delete-then-insert like `upsertReportDatapoints`.
+  """
+  upsertReportFigures(input: UpsertReportFiguresInput!): UpsertReportFiguresResult!
+
+  """
+  Insert a fresh situation-analysis snapshot for
+  (`input.countryLocationId`, `input.windowStart`,
+  `input.windowEnd`) and stamp `validTo = now()` on the
+  previous current row for the same bucket in the same
+  transaction. History rows are preserved. Admin / pipeline only —
+  the Dagster `weekly_situation_analyses` asset is the primary
+  caller.
+  """
+  upsertSituationAnalysis(input: UpsertSituationAnalysisInput!): UpsertSituationAnalysisResult!
+
+  """
+  Upsert one or more per-locale translation rows for an event,
+  crisis, or location. The translated data blob mirrors the canonical
+  entity's JSON shape per locale. Admin/pipeline only. Clears any matching
+  rows from the translation queue (the write is the drain-completion signal).
+  """
+  upsertTranslations(input: UpsertTranslationsInput!): UpsertTranslationsResult!
+
+  """Verify email using a token from the verification link."""
+  verifyEmail(token: String!): Boolean!
+}
+
+"""A cached Nominatim-protocol geocoder response."""
+type NominatimCacheEntry {
+  """
+  The Nominatim endpoint that produced this response (e.g. 'search', 'reverse').
+  """
+  endpoint: String!
+  expiresAt: DateTime!
+  fetchedAt: DateTime!
+  id: String!
+
+  """Raw query string (for debugging only)."""
+  query: String!
+
+  """SHA-256 hex digest of `<endpoint>:<normalised_query>`."""
+  queryHash: String!
+
+  """Raw JSON response from the geocoder."""
+  responseJson: JSON!
+
+  """Lookup outcome: 'ok' / 'no_result' / 'error'."""
+  status: String!
+}
+
+type Notification {
+  actionText: String
+  actionUrl: String
+  createdAt: DateTime!
+  emailNotificationStatus: NotificationStatus
+  id: String!
+  message: String!
+  notificationType: String!
+  smsNotificationStatus: NotificationStatus
+  status: NotificationStatus!
+  updatedAt: DateTime!
+  user: User!
+}
+
+enum NotificationStatus {
+  DELIVERED
+  FAILED
+  PENDING
+  READ
+}
+
+"""Links a user to an organisation with an org-level role."""
+type OrgMember {
+  """When this membership was created."""
+  createdAt: DateTime!
+  id: String!
+
+  """Organisation-level role: org_admin or member."""
+  role: String!
+  user: User!
+}
+
+"""Role within an organisation."""
+enum OrgMemberRole {
+  member
+  org_admin
+}
+
+"""An organisation that owns teams and has members."""
+type Organisation {
+  """When this organisation was created."""
+  createdAt: DateTime!
+  id: String!
+
+  """
+  Whether this organisation is active. Inactive organisations are hidden from non-admin users.
+  """
+  isActive: Boolean!
+
+  """Members of this organisation."""
+  members: [OrgMember!]!
+  name: String!
+
+  """URL-friendly identifier."""
+  slug: String!
+
+  """Teams belonging to this organisation."""
+  teams: [Team!]!
+
+  """When this organisation was last updated."""
+  updatedAt: DateTime!
+}
+
+"""Links a user to an organisation with a role."""
+type OrganisationUser {
+  id: String!
+  organisationId: String!
+  role: String!
+  userId: String!
+}
+
+"""
+A country the CLEAR pipeline publishes a Situation Analysis for, with the
+bounding box used to create its level-0 Country location. bbox order matches
+ensureCountryLocation: [minLng, minLat, maxLng, maxLat].
+"""
+type PipelineCountry {
+  bbox: [Float!]!
+
+  """
+  ISO 3166-1 alpha-3 code (e.g. "SDN"). Used by pipeline ingests that scope
+  external APIs by country (HAPI location_code, IOM DTM Admin0Pcode).
+  """
+  iso3: String!
+  name: String!
+
+  """
+  The admin-0 location's pcode (ISO 3166-1 alpha-2, e.g. "SD"). The strong,
+  name-independent key for resolving the country's level-0 location — the
+  stored name is often the long official form, which exact-name lookup misses.
+  """
+  pcode: String!
+}
+
+"""
+The slim, unauthenticated view of an event used for share-link
+rendering. Deliberately a new type — not a slim wrapper around
+`Event` — so the field set is auditable in one place and field-
+selection can't accidentally leak signals, comments, alerts, or any
+other gated data through the public surface.
+
+Returned by the `publicEvent(eventId, token)` query when the
+Redis-cached snapshot for that token is still alive. Cache TTL
+defaults to 30 days; entries can be evicted earlier under memory
+pressure, in which case the link expires and the user has to
+request a new one.
+"""
+type PublicEvent {
+  """Localised event description (canonical English at snapshot time)."""
+  description: String
+
+  """
+  Soft expiry — the Redis TTL the cached snapshot was written
+  with. The frontend uses this to render "Link expires in N days".
+  """
+  expiresAt: DateTime!
+  id: String!
+
+  """
+  Internally-displaced persons count for the event's admin area,
+  sourced from `locationMetadata(type = "iom_dtm_displacement")`.
+  Same A2 → A1 → A0 fallback as `locationPopulation`. Stringified
+  bigint; null when no displacement metadata exists for any level.
+  """
+  locationIdp: String
+
+  """Level the IDP number came from. Null when `locationIdp` is null."""
+  locationIdpLevel: Int
+
+  """
+  Name of the location the IDP figure is for. Null when
+  `locationIdp` is null.
+  """
+  locationIdpName: String
+
+  """
+  Population of the event's administrative area, resolved by
+  walking the primary location's ancestor chain in A2 → A1 → A0
+  order (district → state → country) and picking the deepest non-
+  null. Mirrors the fallback the in-app event page uses so the
+  share card shows the same number. Stringified bigint; null when
+  no level along the chain has a population. See also
+  `locationPopulationLevel` and `locationPopulationName`.
+  """
+  locationPopulation: String
+
+  """
+  Level the population number came from: `2` (district), `1`
+  (state), `0` (country). Null when `locationPopulation` is
+  null.
+  """
+  locationPopulationLevel: Int
+
+  """
+  Name of the location the population number is for (e.g. "South
+  Darfur"). Null when `locationPopulation` is null. Lets the
+  frontend label the figure with context — "Population of South
+  Darfur" reads more honestly than a bare number when we fell back
+  to a country-level figure.
+  """
+  locationPopulationName: String
+
+  """
+  Stringified bigint (matches the authenticated `Event` field
+  shape). Null when unknown.
+  """
+  populationAffected: String
+  populationDisplaced: String
+
+  """
+  `[lng, lat]` of the primary location's centroid when that
+  location has a Point geometry. Null for polygon-only locations —
+  the frontend hides the minimap in that case.
+  """
+  primaryLocationCoords: [Float!]
+
+  """
+  Human-readable name of the event's primary location (general
+  → origin → destination, first non-null).
+  """
+  primaryLocationName: String
+
+  """Severity score (1–5) at snapshot time."""
+  severity: Float
+
+  """When the share link was minted."""
+  sharedAt: DateTime!
+
+  """
+  `[lng, lat]` for every Point location attached to the event's
+  constituent signals (origin / destination / general fields,
+  deduped by location id). Polygon-only signal locations are
+  omitted. Empty when no signals carry Point geometry — the
+  frontend hides the markers list in that case.
+  """
+  signalPoints: [PublicEventSignalPoint!]!
+
+  """
+  Localised event title (resolved to the canonical English text
+  when the snapshot was taken — the public page is not locale-aware).
+  """
+  title: String
+
+  """
+  Disaster type codes (e.g. `fl`, `pa`). The frontend resolves
+  these to display names via its own disaster-type catalogue.
+  """
+  types: [String!]!
+
+  """Window during which the event is considered valid."""
+  validFrom: DateTime!
+  validTo: DateTime!
+}
+
+"""One Point location attached to one of the event's signals."""
+type PublicEventSignalPoint {
+  """Geographic latitude."""
+  lat: Float!
+
+  """Geographic longitude."""
+  lng: Float!
+
+  """
+  Display name of the location (e.g. "Al Fasher"). Often null
+  for raw point-locations like "Point 15.62, 30.21".
+  """
+  name: String
+}
+
+type Query {
+  """Paginated activity log. Admin only. Newest first."""
+  activityLogs(filter: ActivityLogFilterInput, limit: Int = 50, offset: Int = 0): [ActivityLog!]!
+
+  """
+  Aggregated activity counts + per-user + per-day breakdown for the
+  admin dashboard. Admin only. Default window: last 30 days.
+  """
+  activityStats(from: DateTime, to: DateTime): ActivityStats!
+
+  """
+  Aggregated datapoints for a (window × window_kind × location)
+  scope. Cache-first: returns the pre-computed snapshot when one
+  is current (`validTo IS NULL` or covers the `asOf` timestamp);
+  otherwise assembles the bucket on-demand from `report_datapoints`
+  and returns it with `onDemand = true`. Returns null when no
+  contributing reports exist in scope.
+  """
+  aggregatedDatapoint(
+    """
+    Historical snapshot lookup - return the version that was current
+    at this timestamp. Defaults to `now`.
+    """
+    asOf: DateTime
+
+    """Null = country-wide roll-up (yearly / all-time tiers)."""
+    locationId: String
+
+    """Defaults to the currently-configured pipeline schema version."""
+    schemaVersion: String
+    windowEnd: DateTime!
+    windowKind: String!
+    windowStart: DateTime!
+  ): AggregatedDatapoint
+
+  """
+  Look up an alert by ID. Requires authentication. Non-admins can only access alerts within their team scope.
+  """
+  alert(id: String!): Alert
+
+  """List all alert subscriptions for a location (admin only)."""
+  alertSubscriptionsByLocation(locationId: String!): [AlertSubscription!]!
+
+  """
+  List alerts. Requires authentication. Admins may omit teamId to list all; non-admins must provide a teamId for a team they belong to.
+  """
+  alerts(includeDummy: Boolean, status: AlertStatus, teamId: String): [Alert!]!
+
+  """
+  List alerts by location. Returns all alerts whose event's location is within the given location (including descendants).
+  """
+  alertsByLocation(locationId: String!, status: AlertStatus): [Alert!]!
+
+  """
+  Paginated alerts feed with severity / location / type / date filters and
+  explicit ordering. Use this instead of `alerts(...)` when the UI needs
+  pages or a totalCount.
+  """
+  alertsPage(input: AlertsPageInput): AlertsPage!
+
+  """
+  List every locationMetadata entry of a given type across all locations.
+  By default only current values. Pass current: false for the full history.
+  """
+  allLocationMetadata(current: Boolean, type: String!): [LocationMetadata!]!
+
+  """List all crises."""
+  crises: [Crisis!]!
+
+  """Look up a crisis by ID."""
+  crisis(id: String!): Crisis
+
+  """Look up a data source by ID."""
+  dataSource(id: String!): DataSource
+
+  """List all data sources."""
+  dataSources: [DataSource!]!
+
+  """
+  Daily Active Users time series - one point per UTC date in the
+  window. Admin only. Days with zero logins are omitted; the dashboard
+  can backfill them client-side when plotting.
+  """
+  dauSeries(from: DateTime!, to: DateTime!): [DauPoint!]!
+
+  """Look up a disaster type by ID."""
+  disasterType(id: String!): DisasterType
+
+  """
+  List disaster types grouped into the 3-level hierarchy (level1 > level2 > level3).
+  """
+  disasterTypeHierarchy: [DisasterLevel1!]!
+
+  """List all disaster type classifications (flat list of level-3 rows)."""
+  disasterTypes: [DisasterType!]!
+
+  """
+  IDs of entities of the given type that have NO translation row
+  for the given locale. Admin/pipeline only. Lets the backfill
+  driver enqueue only entities the worker would actually translate,
+  instead of relying on per-task staleness diffs to no-op thousands
+  of already-current rounds. Stale rows (row exists but hashes are
+  out of date) are NOT returned here - they're rare and handled by
+  the per-entity enrichment hooks.
+  """
+  entitiesMissingTranslation(entityType: String!, locale: String!): [ID!]!
+
+  """
+  Cross-entity stats query - returns a total plus optional buckets grouped
+  by type / severity / day / week / month. Filter shape mirrors the page
+  queries so a "current view" can compute its own counts.
+  """
+  entityStats(input: EntityStatsInput!): EntityStats!
+
+  """
+  Look up an event by ID. Requires authentication. Non-admins can only access events within their team scope.
+  """
+  event(id: String!): Event
+
+  """List events. Requires authentication. includeDummy defaults to false."""
+  events(includeDummy: Boolean, teamId: String): [Event!]!
+
+  """
+  List events by location. Returns all events whose origin, destination, or general location is within the given location (including descendants).
+  """
+  eventsByLocation(locationId: String!): [Event!]!
+
+  """
+  Paginated events feed (same filter shape as alertsPage, plus event-only
+  options). Honours teamId as a location-scope filter.
+  """
+  eventsPage(input: EventsPageInput): EventsPage!
+
+  """
+  Events awaiting an alert (severity >= minSeverity AND no alert row yet AND
+  a signal within the last `maxAgeHours`), oldest-first by the event's
+  earliest-signal timestamp — the Dagster alert-stage queue. `first` caps the
+  batch (default 100, max 500); `minSeverity` floors the severity (default 4);
+  `maxAgeHours` bounds staleness on the latest signal's real-world time so the
+  historical backlog / backdated backfill never alerts (default 48; 0 disables).
+  Admin/pipeline only.
+  """
+  eventsPendingAlert(first: Int = 100, maxAgeHours: Int = 48, minSeverity: Int = 4): [Event!]!
+
+  """
+  Look up the most recently-minted public share link for an event,
+  if one still exists in the cache. The Share modal calls this on
+  open so it can reuse an existing link rather than minting a fresh
+  token every time. Returns null when no live link exists - the
+  caller then mints one via `createPublicEventLink`. Requires
+  `requireContentReader` (admin / analyst / viewer); pending users
+  are blocked.
+  """
+  existingPublicEventLink(eventId: String!): CreatePublicEventLinkResult
+
+  """Look up a feature flag by its unique key."""
+  featureFlag(key: String!): FeatureFlag
+
+  """List all feature flags."""
+  featureFlags: [FeatureFlag!]!
+
+  """Staged messages, oldest first. Filter by source and/or thread."""
+  groundMessages(groundSourceId: String, limit: Int = 200, offset: Int = 0, threadId: String): [GroundMessage!]!
+
+  """
+  PIPELINE CONTRACT (admin/pipeline only): a source's staged
+  messages, oldest first, projected for the classification/threading
+  worker — no private-tier sender identity. Returns ALL messages
+  (classified and not) so one query powers both labelling and
+  thread assembly (clustering staged Signals into threads).
+  """
+  groundMessagesForClassification(groundSourceId: String!, limit: Int = 500): [GroundMessageForClassification!]!
+
+  """All ground sources (per-source policy records), newest first."""
+  groundSources: [GroundSource!]!
+
+  """One ground thread with its messages, or null if not found."""
+  groundThread(id: String!): GroundThread
+
+  """
+  Review queue: ground threads, newest first. Filter by source and/or
+  review state ("unverified" | "approved_private" | "approved_public" |
+  "rejected").
+  """
+  groundThreads(groundSourceId: String, limit: Int = 100, offset: Int = 0, reviewState: String): [GroundThread!]!
+
+  """
+  PIPELINE CONTRACT (admin/pipeline only): threading context for the
+  classification worker — a source's existing threads, oldest first,
+  so late corrections/retractions can target an existing thread via
+  GroundThreadUpsertInput.threadId. `states` filters on
+  lifecycleState ("reported" | "updated" | "confirmed" | "corrected" |
+  "retracted"); omitted/empty returns all. The worker selects
+  {id, title, lifecycleState, reviewState, messageIds} — no message
+  content, no sender identity.
+  """
+  groundThreadsForSource(groundSourceId: String!, states: [String!]): [GroundThread]
+
+  """
+  True when at least one current `aggregated_datapoints` row
+  exists for the given schema version. Used by the Dagster
+  aggregation asset to distinguish first-run backfill (wide
+  lookback window) from routine weekly refreshes (narrow window).
+  Pass `countryLocationId` (an admin-0 location id) to scope the
+  check to ONE country, so a newly-onboarded country's first run
+  uses the initial window even after other countries are established
+  — the four-tier walk always produces yearly/all-time buckets AT the
+  country location, so an A0 row is the per-country signal. Any
+  authenticated content reader - a cheap existence check.
+  """
+  hasAggregatedDatapoints(countryLocationId: String, schemaVersion: String!): Boolean!
+
+  """Look up an invitation by token (public - used on accept-invite page)."""
+  invitationByToken(token: String!): InvitationInfo
+
+  """
+  Poll a Dagster run kicked off by `uploadKnowledgebaseDocument`.
+  Returns null when the runId doesn't exist on this Dagster instance
+  (e.g. Dagster was restarted with a fresh instance store, or the
+  runId was recorded against a different DAGSTER_URL). Requires any
+  authenticated content reader.
+  """
+  knowledgebaseIngestJob(runId: String!): KnowledgebaseIngestJob
+
+  """Look up a location by ID."""
+  location(id: String!): Location
+
+  """
+  List metadata entries for a location, optionally filtered by type.
+  By default only the CURRENT value is returned (validTo is null). Pass
+  current: false to include the full history.
+  """
+  locationMetadata(current: Boolean, locationId: String!, type: String): [LocationMetadata!]!
+
+  """
+  History of a (location, type) pair - newest first. Includes the current
+  row plus every superseded one.
+  """
+  locationMetadataHistory(locationId: String!, type: String!): [LocationMetadata!]!
+
+  """
+  List locations, optionally filtered by hierarchy level (0 = country, 1 = state, etc.).
+  """
+  locations(level: Int): [Location!]!
+
+  """
+  Monthly Active Users time series - one point per UTC calendar
+  month in the window. Admin only.
+  """
+  mauSeries(from: DateTime!, to: DateTime!): [MauPoint!]!
+
+  """Returns the currently authenticated user, or null if not signed in."""
+  me: User
+
+  """List the authenticated user's alert subscriptions."""
+  myAlertSubscriptions: [AlertSubscription!]!
+
+  """
+  List all API keys belonging to the authenticated user. Requires authentication.
+  """
+  myApiKeys: [ApiKey!]!
+
+  """List organisations the authenticated user belongs to."""
+  myOrganisations: [Organisation!]!
+
+  """List teams the authenticated user belongs to."""
+  myTeams: [Team!]!
+
+  """
+  Look up a cached Nominatim geocoder response by query hash. Returns
+  null when the entry is missing or expired (admin/pipeline only).
+  """
+  nominatimCacheEntry(queryHash: String!): NominatimCacheEntry
+
+  """Look up a notification by ID."""
+  notification(id: String!): Notification
+
+  """List notifications, optionally filtered by status."""
+  notifications(status: NotificationStatus): [Notification!]!
+
+  """Look up an organisation by ID. Requires membership or global admin."""
+  organisation(id: String!): Organisation
+
+  """
+  Crises awaiting enrichment (enrichmentStatus = PENDING), oldest-first — the
+  Dagster enrichment drain. `first` caps the batch (default 100, max 500).
+  Admin/pipeline only.
+  """
+  pendingCrises(first: Int): [Crisis!]!
+
+  """List pending invitations for an organisation. Requires org admin."""
+  pendingInvites(organisationId: String!): [Invitation!]!
+
+  """
+  Signals awaiting downstream processing (status = NEW), oldest-first — the
+  Dagster event-driven drain. `source` filters by DataSource name (e.g.
+  "dataminr"); `first` caps the batch (default 100, max 500). Admin/pipeline only.
+  """
+  pendingSignals(first: Int, source: String): [Signal!]!
+
+  """
+  Entities enqueued for (re)translation, oldest-first — the Dagster
+  translation drain (durable replacement for the lazy-on-read Celery enqueue).
+  Optional entityType/locale filters; `first` caps the batch (default 100, max
+  500). Admin/pipeline only.
+  """
+  pendingTranslations(entityType: String, first: Int, locale: String): [TranslationQueueItem!]!
+
+  """
+  The countries the CLEAR pipeline publishes a Situation Analysis for, with
+  each Country's bounding box. The scheduled publisher reads this to know which
+  countries to run. Requires authentication.
+  """
+  pipelineCountries: [PipelineCountry!]!
+
+  """
+  Resolve a public share-link to its cached event snapshot. No auth -
+  the (eventId, token) pair from the URL is the gate, and the snapshot
+  only contains the safe fields enumerated on `PublicEvent`. Returns
+  null when the Redis cache has no entry for that pair (link expired,
+  revoked, or evicted under memory pressure - caller treats all three
+  the same).
+  """
+  publicEvent(eventId: String!, token: String!): PublicEvent
+
+  """
+  One report's extracted structured datapoints. Returns null when
+  no extraction has been persisted yet (report ingested via vector
+  RAG but the datapoint pipeline hasn't caught up). Requires any
+  authenticated content reader.
+  """
+  reportDatapoint(reportId: String!): ReportDatapoint
+
+  """
+  Captured infographics (charts/maps/tables/composite panels) filtered by the
+  SAME params as text — location / event type / need sector / time / kind — so a
+  figure can be attached to an answer scoped to a place + topic + period. Powers
+  figure attachment + on-demand infographic generation. Array filters match ANY
+  tag; time overlaps the window. Any authenticated content reader.
+  """
+  reportFigures(
+    """
+    Cursor for pagination: the `id` of the last figure from the previous
+    page. Rows after it (in the stable extractedAt/pageNumber/id order) are
+    returned. Omit for the first page; a report's figures are capped well
+    under 200 so most callers never need this.
+    """
+    after: String
+    eventTypes: [String!]
+
+    """Max rows to return (1–200, default 50)."""
+    first: Int = 50
+    kinds: [String!]
+    locationIds: [String!]
+    needSectors: [String!]
+    reportId: String
+    timeRangeEnd: DateTime
+    timeRangeStart: DateTime
+  ): [ReportFigure!]!
+
+  """
+  Resolve a place name against the offline GeoNames gazetteer - the
+  first tier of the hybrid geo-resolver. Tries an exact normalised-name
+  match, then a `pg_trgm` fuzzy match, preferring populated places / admin
+  areas (feature class P/A) and the more-populous tie-break. `countryCode`
+  (ISO-3166-1 alpha-2, e.g. "SD") scopes the search; omit to search every
+  loaded country. `minSimilarity` (default 0.4) floors the fuzzy match.
+  Returns null on no match - the geoparser then falls back to LocationIQ
+  for landmarks/POIs the gazetteer lacks. Admin / pipeline only.
+  """
+  resolveGazetteerLocation(countryCode: String, minSimilarity: Float, name: String!): GazetteerHit
+
+  """
+  Resolve a knowledge-base location reference to a `locations.id`.
+  Pcode wins over name; `adminLevel` narrows the name match so a
+  village that shares its state's name doesn't collide. Returns null
+  when neither the pcode nor the name matches - the ingest keeps the
+  raw pcode on the row so a future backfill can re-resolve. A name given
+  without `adminLevel` that matches more than one admin level is
+  ambiguous and also returns null (rather than guessing the deepest
+  match), so an unlevelled name never silently lands on the wrong tier.
+  Admin / pipeline only.
+  """
+  resolveKnowledgebaseLocation(adminLevel: Int, name: String, pcode: String): String
+
+  """
+  Hybrid dense + BM25 retrieval over the knowledge base, fused
+  with Reciprocal Rank Fusion (k=60) and returned in descending
+  score order. Both retrievers run in parallel over the same filter
+  set; each contributes up to 50 candidates before fusion. The
+  embedding provider is the one configured in the environment -
+  keep the write and read sides on the same provider or turn on
+  `filters.currentEmbeddingModelOnly` to guarantee vector-space
+  consistency. Requires any authenticated content reader.
+  """
+  searchKnowledgebase(filters: KnowledgebaseFilters, limit: Int = 10, query: String!): [KnowledgebaseHit!]!
+
+  """
+  Look up a signal by ID. Requires authentication. Non-admins can only access signals within their team scope.
+  """
+  signal(id: String!): Signal
+
+  """
+  Open Signal Location challenges (for map dual-pin rendering). Team-scoped
+  like signals when teamId is given; status defaults to "consideration".
+  """
+  signalLocationChallenges(status: String, teamId: String): [SignalLocationChallenge!]!
+
+  """List signals. Requires authentication. includeDummy defaults to false."""
+  signals(includeDummy: Boolean, teamId: String): [Signal!]!
+
+  """
+  List signals by location. Returns all signals whose origin, destination, or general location is within the given location (including descendants).
+  """
+  signalsByLocation(locationId: String!): [Signal!]!
+
+  """Paginated signals feed with source-based filtering."""
+  signalsPage(input: SignalsPageInput): SignalsPage!
+
+  """
+  Trend / history view - one row per year for a country, current
+  versions only, newest year first. Never mixes schema versions: a
+  bump changes what the numbers mean, so one series is always one
+  version. Requires any authenticated content reader.
+  """
+  situationAnalysesForCountry(
+    countryLocationId: String!
+    limit: Int = 5
+
+    """
+    Pin the trend to a payload schema version. Defaults to the
+    country's most recently written version. Pass an older one to
+    chart a historical payload shape.
+    """
+    schemaVersion: String
+  ): [SituationAnalysis!]!
+
+  """
+  Current situation-analysis snapshot for one bucket of a country.
+  Buckets are keyed `(countryLocationId, windowKind, windowStart)`.
+  By default reads the yearly bucket, where `year` derives
+  `windowStart = Jan 1` server-side and falls back to `year(now())`
+  when null - the dashboard's usual call. Pass `windowKind` +
+  `windowStart` instead to read a finer bucket (e.g. monthly, to diff
+  one month against the previous). Returns null when no snapshot
+  exists - the dashboard should render an empty state and wait for the
+  next weekly generation. Requires any authenticated content reader.
+  """
+  situationAnalysis(
+    """
+    Historical read - return the version that was current at
+    this timestamp (defaults to now).
+    """
+    asOf: DateTime
+    countryLocationId: String!
+
+    """
+    Pin the read to a payload schema version. Defaults to the most
+    recently written version for the bucket. Versions coexist rather
+    than supersede - an older payload shape stays readable, so pass
+    this to keep a client on a shape it understands. Read
+    `schemaVersion` off the returned row to see what you got.
+    """
+    schemaVersion: String
+
+    """
+    Bucket granularity, part of the bucket key. Defaults to
+    `yearly`. The pipeline owns this taxonomy (currently `yearly`
+    and `monthly`), so it is not validated against a fixed list here -
+    an unknown value simply matches no row and returns null.
+    """
+    windowKind: String
+
+    """
+    Exact bucket start, matched for equality. Required when
+    `windowKind` is anything other than `yearly`, because a year
+    alone cannot identify a finer bucket. Must be the same instant the
+    writer used (midnight UTC on the first day of the window), so pass
+    the value the pipeline computed rather than reconstructing it.
+    `windowEnd` is never matched on.
+    """
+    windowStart: DateTime
+    year: Int
+  ): SituationAnalysis
+
+  """
+  Read one situation-analysis snapshot by its row id, including
+  superseded history rows (the bucket-keyed `situationAnalysis` query
+  only returns the current row). Used by the translation pipeline to
+  fetch a specific generation's canonical prose. `data` is overlaid
+  with the caller's locale translation like every other read — the
+  pipeline calls it as `en` and gets canonical text back. Requires any
+  authenticated content reader.
+  """
+  situationAnalysisById(id: String!): SituationAnalysis
+
+  """Look up a team by ID. Requires membership or global admin."""
+  team(id: String!): Team
+
+  """
+  Per-(entityType, locale) translation coverage snapshot for the
+  admin dashboard. Admin only. Each row reports canonicalCount (how
+  many entities of that type exist) and translatedCount (how many
+  have a translation row for that locale). Coverage = translated /
+  canonical.
+  """
+  translationCoverage: [TranslationCoverage!]!
+
+  """
+  Translation rows currently stored for an entity, one per locale.
+  Admin/pipeline only. Used by clear-pipeline to compare stored source
+  hashes against the canonical row and decide which fields to re-translate.
+  """
+  translations(entityId: String!, entityType: String!): [TranslationRow!]!
+
+  """Look up a user by ID."""
+  user(id: String!): User
+
+  """
+  Point-in-time user-engagement summary: DAU, WAU, MAU, and the
+  DAU/MAU stickiness ratio. Derived from auth.login activity. Admin
+  only. `asOf` defaults to NOW(); pass a historical timestamp to
+  compute as-of that date.
+  """
+  userEngagement(asOf: DateTime): UserEngagementMetrics!
+
+  """List all users."""
+  users: [User!]!
+
+  """Recent delivery attempts for a subscription, newest first."""
+  webhookDeliveries(limit: Int = 50, subscriptionId: String!): [WebhookDelivery!]!
+
+  """One subscription by ID, or null if not found."""
+  webhookSubscription(id: String!): WebhookSubscription
+
+  """All webhook subscriptions, newest first."""
+  webhookSubscriptions: [WebhookSubscription!]!
+}
+
+"""Summary counts from a `refreshAggregatedDatapoints` run."""
+type RefreshAggregatedDatapointsResult {
+  computedBuckets: Int!
+  schemaVersion: String!
+
+  """
+  Count of `situation_analyses` current rows that had their
+  `validTo` stamped as a cascade of the yearly-country
+  aggregation writes in this run. Zero means either no yearly
+  buckets were touched or no situation-analysis snapshot existed
+  yet for the affected countries.
+  """
+  situationAnalysesInvalidated: Int!
+  supersededBuckets: Int!
+}
+
+input ReplyToCommentInput {
+  comment: String!
+
+  """ID of the comment to reply to."""
+  repliedToCommentId: String!
+
+  """User IDs to tag in the reply."""
+  tagUserIds: [String!]
+}
+
+"""
+One report's extracted structured datapoints. Keys inside
+`data` are the six domain names: `timing_and_scope`,
+`casualties`, `displacement`, `needs_and_funding`,
+`access_and_incidents`, `narrative_and_confidence`. A domain
+whose extraction failed is written as `null` - the operator can
+re-run a targeted extraction on that domain later without touching
+the successful ones.
+"""
+type ReportDatapoint {
+  """
+  Exhaustive per-report payload. See the Pydantic sub-schemas in
+  `datapoints_schemas.py` for shape.
+  """
+  data: JSON!
+
+  """
+  Free-text event tags (`conflict`, `flood`, `displacement`,
+  `disease-outbreak`, …). Multi-hazard reports carry multiple.
+  """
+  eventTypes: [String!]!
+  extractedAt: DateTime!
+
+  """
+  LLM identifier that produced the extraction (e.g.
+  `claude-sonnet-4-6`). Used by the reviewer-audit workflow.
+  """
+  extractedByModel: String!
+  id: String!
+
+  """Resolved `locations.id` values, deduped."""
+  locationIds: [String!]!
+
+  """
+  Raw pcodes the LLM emitted that the resolver couldn't tie to a
+  CLEAR location. A nightly backfill re-attempts these.
+  """
+  locationPcodes: [String!]!
+  publishedAt: DateTime!
+  reportId: String!
+  reportTitle: String!
+  reportingPeriodEnd: DateTime
+
+  """Window the report CONTENT describes. Not the publication date."""
+  reportingPeriodStart: DateTime
+
+  """
+  Extraction schema version, e.g. `v1`. Rows with different
+  versions must not be aggregated together.
+  """
+  schemaVersion: String!
+
+  """
+  The resolved publisher, e.g. "IOM DTM" or "WFP". Exposed alongside
+  `sourceId` so a client can label a report without a second round trip.
+  
+  **Null for rows extracted before source attribution landed (schema v1).**
+  Those were never re-extracted, so clients must keep a fallback - deriving a
+  publisher from the `sourceUrl` host yields the aggregator ("reliefweb.int"),
+  not the publisher, so it is a label of last resort.
+  """
+  source: DataSource
+
+  """
+  The report's publisher (a `data_sources` id), resolved by the pipeline
+  via `resolveDataSource`. This is the report-level fallback; a figure's own
+  cited origin lives per-figure inside `data`. See clear-pipeline
+  ADR-0004.
+  """
+  sourceId: String
+  sourceUrl: String!
+
+  """
+  Denormalised hot totals - cheap dashboard filter/sort keys.
+  NULL when the report doesn't headline the figure; DO NOT sum
+  these across rows (the JSON blob carries the incident-safe form).
+  """
+  totalAffected: Int
+  totalDisplaced: Int
+  totalKilled: Int
+}
+
+type ReportFigure {
+  """
+  Source-page bounding box [x0, top, x1, bottom] in PDF points; empty on full-page fallback.
+  """
+  bbox: [Float!]!
+  description: String
+  eventTypes: [String!]!
+  extractedAt: DateTime!
+  extractedByModel: String!
+  id: String!
+  isFullPage: Boolean!
+
+  """
+  chart | map | table | infographic | photo (logos are dropped, not stored).
+  """
+  kind: String!
+  locationIds: [String!]!
+  locationPcodes: [String!]!
+  needSectors: [String!]!
+
+  """1-indexed source page."""
+  pageNumber: Int!
+  reportId: String!
+  reportTitle: String!
+
+  """S3 key of the cropped image."""
+  s3Key: String!
+
+  """Publishing source (data_sources id) for attribution."""
+  sourceId: String
+  sourceUrl: String!
+  timeRangeEnd: DateTime
+  timeRangeStart: DateTime
+  title: String
+
+  """
+  Structured transcription (rows / nested groups / callouts) from the vision pass.
+  """
+  transcription: JSON
+}
+
+input ReportFigureInput {
+  bbox: [Float!]
+  description: String
+  eventTypes: [String!]
+  isFullPage: Boolean
+  kind: String!
+  locationIds: [String!]
+  locationPcodes: [String!]
+  needSectors: [String!]
+  pageNumber: Int!
+  s3Key: String!
+  sourceId: String
+  timeRangeEnd: DateTime
+  timeRangeStart: DateTime
+  title: String
+  transcription: JSON
+}
+
+"""Result of the admin-only `rotateDevUserApiKey` mutation."""
+type RotateDevUserApiKeyResult {
+  """True when the rotation-notice email was successfully handed off."""
+  notificationEmailSent: Boolean!
+
+  """
+  The fresh plaintext API key — same one-time-delivery rules as createDevUser.
+  """
+  plaintextKey: String!
+
+  """The user whose key was rotated."""
+  user: User!
+}
+
+"""
+A source observation ingested from a data source or filed manually.
+Upstream source payloads are stored internally and are not returned on this type.
+"""
+type Signal {
+  """
+  Reported casualties for the signal. Sourced from ACLED's fatalities
+  field; for Dataminr, parsed from raw text via regex.
+  """
+  casualties: Int
+  collectedAt: DateTime!
+
+  """User comments on this signal."""
+  comments: [UserComment!]!
+
+  """
+  Fingerprint of the source's raw data, for sources whose records get
+  revised in place (e.g. IDMC). Null for sources that never revise a signal
+  after creation.
+  """
+  contentHash: String
+  description: String
+
+  """Destination location of the signal."""
+  destinationLocation: Location
+
+  """Events this signal is linked to."""
+  events: [Event!]!
+
+  """
+  Stable upstream identifier (e.g. "dataminr:{alertId}"). Used to
+  deduplicate ingestion — (source, externalId) is unique.
+  """
+  externalId: String
+
+  """User feedback on this signal."""
+  feedbacks: [UserFeedback!]!
+
+  """General location (when no origin/destination)."""
+  generalLocation: Location
+  id: String!
+
+  """Whether this is seed/demo data."""
+  isDummy: Boolean!
+
+  """
+  When the API last applied an in-place content revision to this signal
+  (e.g. an IDMC IDU row revised upstream). Null if never revised.
+  """
+  lastRevisedAt: DateTime
+
+  """Open Location challenge for this signal, if any (null when none)."""
+  locationChallenge: SignalLocationChallenge
+
+  """
+  Media URLs (S3 keys for manual uploads, or source URLs for pipeline signals).
+  """
+  media: [String!]!
+
+  """Origin location of the signal."""
+  originLocation: Location
+
+  """
+  When the downstream pipeline finished processing this signal (null while NEW).
+  """
+  processedAt: DateTime
+  publishedAt: DateTime!
+
+  """
+  Pointer to the raw payload blob in the S3 data lake, when landed there.
+  """
+  rawS3Key: String
+
+  """Severity score (1–5). From data source or estimated by pipeline."""
+  severity: Int
+
+  """The data source this signal was collected from."""
+  source: DataSource!
+
+  """Processing status for the pipeline drain (NEW until downstream runs)."""
+  status: SignalStatus!
+  title: String
+  url: String
+}
+
+"""
+An analyst's Location challenge on a Signal, with an optional Location
+correction (Location trust v1). Queue only — status is always "consideration",
+there is no accept/reject, and it never mutates the Signal's own geometry.
+"""
+type SignalLocationChallenge {
+  createdAt: DateTime!
+
+  """Auth user id of whoever filed the challenge."""
+  createdBy: String!
+
+  """True when proposedLng/proposedLat are both set."""
+  hasProposedPoint: Boolean!
+  id: ID!
+
+  """Optional note explaining why the pin looks wrong."""
+  note: String
+  proposedLat: Float
+
+  """
+  Proposed corrected point. Both lng and lat are set together, or both null
+  (a bare challenge with no correction).
+  """
+  proposedLng: Float
+
+  """Optional label for the proposed point."""
+  proposedName: String
+  signalId: String!
+
+  """v1 is always "consideration"."""
+  status: String!
+  updatedAt: DateTime!
+}
+
+enum SignalOrderBy {
+  """Oldest first by publishedAt."""
+  PUBLISHED_ASC
+
+  """Newest first by publishedAt."""
+  PUBLISHED_DESC
+  SEVERITY_ASC
+  SEVERITY_DESC
+}
+
+"""
+Durable processing status for the Dagster event-driven drain.
+NEW = ingested, awaiting downstream processing; PROCESSED = classify→group→
+alert done; FAILED = terminal failure.
+"""
+enum SignalStatus {
+  FAILED
+  NEW
+  PROCESSED
+}
+
+type SignalsPage {
+  hasMore: Boolean!
+  items: [Signal!]!
+  totalCount: Int!
+}
+
+input SignalsPageInput {
+  """Filter on signal.publishedAt — inclusive."""
+  from: DateTime
+  includeDummy: Boolean
+  limit: Int
+  locationId: String
+  offset: Int
+  orderBy: SignalOrderBy
+  severityMax: Int
+  severityMin: Int
+
+  """
+  Restrict to signals whose source name is in this list (e.g. ["acled","dataminr"]).
+  """
+  sourceNames: [String!]
+  teamId: String
+  to: DateTime
+}
+
+"""
+One (country × year) situation-analysis snapshot. Cache read
+path — always current unless `asOf` is supplied for historical
+reads.
+"""
+type SituationAnalysis {
+  """
+  Aggregated-datapoints snapshot this analysis was generated
+  against, when known. Null for early bootstrap runs.
+  """
+  aggregatedDatapointId: String
+
+  """FK to `locations.id` — the country (A0) this analysis covers."""
+  countryLocationId: String!
+
+  """
+  Full analysis blob. Top-level keys: `datapoints`,
+  `ai_summary`, `context_risks`, `hazards_and_vulnerabilities`,
+  `displacement`, `sectors`, `sources`. LLM-generated
+  components carry their own `source_report_ids` for
+  per-component provenance.
+  """
+  data: JSON!
+  generatedAt: DateTime!
+
+  """
+  LLM identifier (e.g. `claude-sonnet-4-6`).
+  Deterministic-only Phase B runs record `deterministic:<version>`.
+  """
+  generatedByModel: String!
+
+  """
+  Total LLM cost across all component calls. Null when the
+  generator didn't track cost or the run was deterministic-only.
+  """
+  generationCostUsd: Float
+  id: String!
+
+  """
+  Bumped when the output taxonomy OR the prompt set changes.
+  Different-version rows never mix on trend views.
+  """
+  schemaVersion: String!
+
+  """
+  Denormalised union of every contributing report id across all
+  components. Same identity as the `report_id` on the underlying
+  `knowledgebase` / `report_datapoints` rows.
+  """
+  sourceReportIds: [String!]!
+
+  """
+  Bitemporal validity — this snapshot's lifetime as a "current"
+  row. `validTo` is null when the row is still the current one
+  for its bucket; else it carries the timestamp when a newer
+  regeneration superseded it.
+  """
+  validFrom: DateTime!
+  validTo: DateTime
+  windowEnd: DateTime!
+
+  """
+  Granularity of the analysis window — `yearly` today. Part of the
+  bucket key alongside `countryLocationId` and `windowStart`;
+  `windowEnd` is a derived detail and is never matched on.
+  """
+  windowKind: String!
+  windowStart: DateTime!
+}
+
+type StatsBucket {
+  count: Int!
+
+  """
+  Bucket label — depends on groupBy: glide code, severity number as
+  string, or ISO date/week/month.
+  """
+  key: String!
+}
+
+enum StatsGroupBy {
+  """
+  Group by day / week / month of the entity's primary timestamp.
+  Buckets are returned with ISO-8601 keys (`YYYY-MM-DD`, `YYYY-Www`,
+  `YYYY-MM`).
+  """
+  day
+  month
+
+  """Single bucket — just `total`. Use this for "how many X" queries."""
+  none
+
+  """Group by integer severity (1-5)."""
+  severity
+
+  """
+  Group by event/signal type (event.types[] is unnested; signals use
+  their source name as the type proxy).
+  """
+  type
+  week
+}
+
+"""
+One metric's estimated current total (ADR-0006 §4): the latest
+authoritative stock plus the flows reported after its reference date T₀.
+Flows at or before T₀ are already embedded in the stock and are not added
+again - the invariant that stops returnee/IDP totals from over-counting.
+"""
+type StockFlowEstimate {
+  """
+  Reports contributing forward flows - a provenance count, not a count of
+  distinct flow events.
+  """
+  flowCount: Int!
+
+  """Deduped sum of the flows whose as-of date is strictly after T₀."""
+  flowsSince: Float!
+
+  """The anchoring latest authoritative stock value (API-reconciled)."""
+  stock: Float!
+
+  """
+  T₀ - the anchor stock's reference date. Flows at/before it are treated
+  as already counted inside `stock`.
+  """
+  t0: DateTime!
+
+  """`stock` + `flowsSince` - the headline estimated current total."""
+  total: Float!
+}
+
+input SubmitSignalLocationChallengeInput {
+  note: String
+  proposedLat: Float
+
+  """
+  Omit both to file a bare challenge. Provide both (finite, in range) for a
+  Location correction — one without the other is rejected.
+  """
+  proposedLng: Float
+  proposedName: String
+  signalId: String!
+}
+
+input SubscribeToAlertsBatchInput {
+  """
+  One or more disaster/event types (glideNumbers). A subscription is created for every (location × alertType) pair.
+  """
+  alertTypes: [String!]!
+  channel: Channel!
+  frequency: Frequency!
+
+  """One or more location IDs."""
+  locationIds: [String!]!
+
+  """Minimum event severity (1-5). Applied to all created subscriptions."""
+  minSeverity: Int
+}
+
+input SubscribeToAlertsInput {
+  """
+  Disaster/event type (glideNumber from disaster_types, e.g. 'fl', 'eq').
+  """
+  alertType: String!
+  channel: Channel!
+  frequency: Frequency!
+  locationId: String!
+
+  """Minimum event severity (1-5) to notify on. Defaults to 1 (all alerts)."""
+  minSeverity: Int
+}
+
+"""A team within an organisation, scoped to specific locations."""
+type Team {
+  createdAt: DateTime!
+  description: String
+  id: String!
+
+  """Locations this team is scoped to. Empty means global monitoring."""
+  locations: [Location!]!
+
+  """Members of this team."""
+  members: [TeamMember!]!
+  name: String!
+
+  """The organisation this team belongs to."""
+  organisation: Organisation!
+
+  """URL-friendly identifier, unique within the organisation."""
+  slug: String!
+  updatedAt: DateTime!
+}
+
+"""One (team, role) assignment passed to inviteUser."""
+input TeamAssignmentInput {
+  teamId: String!
+  teamRole: TeamMemberRole!
+}
+
+"""Links a user to a team with a team-level role."""
+type TeamMember {
+  createdAt: DateTime!
+  id: String!
+
+  """Team-level role: lead, analyst, or viewer."""
+  role: String!
+  user: User!
+}
+
+"""Role within a team."""
+enum TeamMemberRole {
+  field_coordinator
+  team_admin
+  team_member
+}
+
+"""
+Per-(entity_type, locale) coverage snapshot used by the admin
+dashboard to see how much of the catalog has been translated.
+
+- canonicalCount: total entities of this type that *could* be
+  translated (i.e. exist in the canonical table).
+- translatedCount: number with a row in the translations sidecar
+  for this locale.
+
+The fraction translatedCount / canonicalCount is the live coverage
+for that (type, locale) cell — anything < 1.0 means the next read of
+one of the missing entities by a user on that locale will fall back
+to canonical English (and trigger the lazy-on-read enqueue, see
+utils/translation-loader.ts).
+"""
+type TranslationCoverage {
+  canonicalCount: Int!
+  entityType: String!
+  locale: String!
+  translatedCount: Int!
+}
+
+"""
+A pending (re)translation request — the durable replacement for the
+lazy-on-read Celery enqueue. Drained by the Dagster translation consumer,
+which translates the entity at `locale` and writes it back via
+upsertTranslations (which clears the queue row).
+"""
+type TranslationQueueItem {
+  enqueuedAt: DateTime!
+  entityId: String!
+
+  """'event' | 'crisis' | 'location'."""
+  entityType: String!
+  id: String!
+
+  """BCP-47 locale (lowercased) to translate into."""
+  locale: String!
+}
+
+"""
+A single translation row, returned by the admin/pipeline-only
+translations(entityType, entityId) query so the pipeline can compare
+stored source-hashes against the canonical row and decide which fields
+(if any) need re-translating.
+"""
+type TranslationRow {
+  createdAt: DateTime!
+
+  """Translated payload, same shape as the canonical entity per type."""
+  data: JSON!
+  locale: String!
+
+  """
+  Per-field SHA-256 hashes of the canonical English source that was
+  used to produce `data`. Null on rows written before hashes were
+  introduced — treat null as "all fields stale".
+  """
+  sourceHashes: JSON
+  updatedAt: DateTime!
+}
+
+input UpdateAlertInput {
+  status: AlertStatus
+}
+
+input UpdateAlertSubscriptionInput {
+  active: Boolean
+  channel: Channel
+  frequency: Frequency
+
+  """Minimum event severity (1-5)."""
+  minSeverity: Int
+}
+
+input UpdateCrisisPopulationInput {
+  """Population directly affected by the events (BigInt as string)."""
+  populationAffected: String
+
+  """
+  Total population residing within the event admin areas (BigInt as string).
+  """
+  populationInArea: String
+
+  """
+  LLM-generated forward scenarios. Shape:
+  { most_likely, best_case, worst_case, description }.
+  """
+  scenarios: JSON
+
+  """AI-generated crisis summary."""
+  summary: String
+
+  """AI-generated crisis title."""
+  title: String
+}
+
+input UpdateDataSourceInput {
+  baseUrl: String
+  infoUrl: String
+  isActive: Boolean
+  name: String
+
+  """NATO Admiralty-style reliability grade 1–4; null = ungraded."""
+  reliability: Int
+
+  """Alias set for source-name normalisation (see resolveDataSource)."""
+  synonyms: [String!]
+  type: String
+}
+
+input UpdateEventInput {
+  """Aggregated casualties for the event (max across constituent signals)."""
+  casualties: Int
+  description: String
+  descriptionSignals: JSON
+  destinationId: String
+  firstSignalCreatedAt: String
+  lastSignalCreatedAt: String
+  locationId: String
+  originId: String
+  populationAffected: String
+
+  """Estimated population displaced (BigInt as string)."""
+  populationDisplaced: String
+  rank: Float
+  severity: Int
+  signalIds: [String!]
+
+  """
+  When the real-world event started (onset), parsed from signal text.
+  ISO-8601. The pipeline keeps the EARLIEST onset across an event's signals.
+  """
+  startedAt: String
+  title: String
+  types: [String!]
+  validFrom: String
+  validTo: String
+}
+
+"""
+Partial update of a source's policy record. Null/omitted fields are
+left unchanged; transportId is immutable (it is the identity that
+externalIds are minted against). The merged row is re-validated: group
+kinds must end up with a complete consent record.
+"""
+input UpdateGroundSourceInput {
+  consentRecordedAt: String
+  consentRecordedBy: String
+  consentScope: String
+
+  """"staff_group" | "partner_group" | "hotline"."""
+  kind: String
+  name: String
+  privacyDefault: String
+  retentionRule: String
+  reviewerRoles: [String!]
+}
+
+input UpdateLocationInput {
+  geoId: Int
+  level: Int
+  name: String
+  osmId: String
+  pCode: String
+  parentId: String
+}
+
+"""Fields for updating an existing organisation."""
+input UpdateOrganisationInput {
+  """Set active/inactive status."""
+  isActive: Boolean
+
+  """New display name."""
+  name: String
+
+  """New URL-friendly identifier."""
+  slug: String
+}
+
+input UpdateProfileInput {
+  enableEmailNotification: Boolean
+  enableInAppNotification: Boolean
+  enableSMSNotification: Boolean
+  image: String
+
+  """Preferred UI language code (BCP-47 / ISO 639-1, e.g. "en", "ar")."""
+  language: String
+  name: String
+  phoneNumber: String
+}
+
+input UpdateSignalContentInput {
+  casualties: Int
+
+  """
+  Fingerprint of the incoming raw payload. Compared against the
+  signal's stored contentHash; the write (and lastRevisedAt) only
+  happens when they differ.
+  """
+  contentHash: String!
+  description: String
+  destinationId: String
+  geoparsedData: JSON
+  id: String!
+
+  """
+  Fallback geo-resolution, same as CreateSignalInput's lat/lng — used
+  when no explicit originId/destinationId/locationId resolved.
+  """
+  lat: Float
+  lng: Float
+  locationId: String
+  originId: String
+  pointName: String
+  rawData: JSON!
+  severity: Int
+  title: String
+  url: String
+}
+
+input UpdateTeamInput {
+  description: String
+  name: String
+  slug: String
+}
+
+"""
+Input for updating an existing subscription. All fields are
+optional — provide only what you want to change.
+"""
+input UpdateWebhookSubscriptionInput {
+  active: Boolean
+  eventTypeFilter: [String!]
+  name: String
+  targetUrl: String
+}
+
+"""File upload scalar (via graphql-upload)."""
+scalar Upload
+
+"""Result of a knowledgebase upsert — summary counts for logging."""
+type UpsertKnowledgebaseResult {
+  chunksDeleted: Int!
+  chunksInserted: Int!
+  reportId: String!
+}
+
+input UpsertLocationMetadataInput {
+  """JSON payload for this type."""
+  data: JSON!
+  locationId: String!
+
+  """Type string (e.g. "iom_dtm_displacement")."""
+  type: String!
+}
+
+input UpsertNominatimCacheInput {
+  """The Nominatim endpoint that produced this response."""
+  endpoint: String!
+
+  """Raw query string for debugging / audit."""
+  query: String!
+
+  """
+  SHA-256 hex digest of `<endpoint>:<normalised_query>`. The caller is
+  responsible for computing this — the server doesn't re-hash.
+  """
+  queryHash: String!
+
+  """Raw JSON response to cache. Stored verbatim."""
+  responseJson: JSON!
+
+  """
+  'ok' for a usable result, 'no_result' for an empty result set,
+  'error' when the geocoder returned an error response. Negative results
+  are cached so we don't re-ask the same dead question.
+  """
+  status: String!
+
+  """
+  How long this entry should remain valid, in seconds. The server
+  computes `expires_at = NOW() + ttl_seconds`.
+  """
+  ttlSeconds: Int!
+}
+
+"""
+Input for `upsertReportDatapoints`. Field names / types
+mirror the ReportDatapoint output so a client can echo one back
+into the other with minimal transformation.
+"""
+input UpsertReportDatapointsInput {
+  data: JSON!
+  eventTypes: [String!]!
+  extractedByModel: String!
+  locationIds: [String!]!
+  locationPcodes: [String!]!
+  publishedAt: DateTime!
+  reportId: String!
+  reportTitle: String!
+  reportingPeriodEnd: DateTime
+  reportingPeriodStart: DateTime
+  schemaVersion: String!
+
+  """
+  The report's publisher source (a `data_sources` id), resolved by the
+  pipeline via `resolveDataSource`. Null until source attribution backfills;
+  a figure's own cited source lives per-figure inside `data`. See clear-pipeline ADR-0004.
+  """
+  sourceId: String
+  sourceUrl: String!
+  totalAffected: Int
+  totalDisplaced: Int
+  totalKilled: Int
+}
+
+"""Result of `upsertReportDatapoints` - summary for logs."""
+type UpsertReportDatapointsResult {
+  """
+  `true` when the mutation replaced a previously extracted row,
+  `false` when it created the first row for the report.
+  """
+  createdOrReplaced: Boolean!
+  reportId: String!
+  schemaVersion: String!
+}
+
+"""Replace-on-reingest payload for one report's figures (pipeline-only)."""
+input UpsertReportFiguresInput {
+  extractedByModel: String!
+  figures: [ReportFigureInput!]!
+  reportId: String!
+  reportTitle: String!
+  sourceUrl: String!
+}
+
+type UpsertReportFiguresResult {
+  """Number of figures written."""
+  count: Int!
+  reportId: String!
+}
+
+input UpsertSituationAnalysisInput {
+  aggregatedDatapointId: String
+  countryLocationId: String!
+  data: JSON!
+  generatedByModel: String!
+  generationCostUsd: Float
+  schemaVersion: String!
+  sourceReportIds: [String!]!
+  windowEnd: DateTime!
+
+  """
+  Window granularity — `yearly` today. Required: it is part of the
+  bucket key, so a wrong or missing value writes a row no reader will
+  ask for. Not defaulted, deliberately.
+  """
+  windowKind: String!
+  windowStart: DateTime!
+}
+
+"""
+Summary of an `upsertSituationAnalysis` mutation — reports
+whether the write superseded a previously-current row.
+"""
+type UpsertSituationAnalysisResult {
+  countryLocationId: String!
+  situationAnalysisId: String!
+
+  """
+  `true` when the mutation stamped `validTo` on a previous
+  current row for the same bucket, `false` when this was the
+  first row for the (country, window) tuple.
+  """
+  supersededPrevious: Boolean!
+}
+
+input UpsertTranslationsInput {
+  entityId: String!
+
+  """One of 'event' | 'crisis' | 'location' (case-insensitive)."""
+  entityType: String!
+
+  """One entry per target locale. Each row is upserted independently."""
+  translations: [LocaleTranslationInput!]!
+}
+
+"""
+Result of upserting one or more locale rows for a given entity. Carries
+the locales that were written so the caller (typically clear-pipeline)
+can confirm coverage without a follow-up read.
+"""
+type UpsertTranslationsResult {
+  entityId: String!
+  entityType: String!
+  locales: [String!]!
+}
+
+"""
+A registered user with role-based access.
+
+PII fields (`email`, `phoneNumber`, `role`, `isActive`) and the
+private relation set (`alerts`, `notifications`, `organisations`,
+`teamMemberships`, `feedbacks`, `comments`, `escalations`) are
+gated server-side:
+  - PII: returned when caller IS the user, is a global admin, OR
+    shares at least one organisation with the user. Otherwise null
+    (PII) or empty array (private relations).
+  - Private relations: returned only when caller IS the user OR is
+    a global admin. Sharing an organisation does NOT grant access
+    to another member's inbox / comment history.
+
+Schema makes these fields nullable so the gate can return null when
+the caller is not authorised, instead of throwing — a logged-in
+analyst browsing an event's comments shouldn't see a hard error on
+the commenter's email.
+"""
+type User {
+  """
+  Alerts received by this user. Empty for non-self / non-admin
+  callers.
+  """
+  alerts: [UserAlert!]!
+
+  """Empty for non-self / non-admin callers."""
+  comments: [UserComment!]!
+  createdAt: DateTime!
+
+  """
+  The user's default team (last selected). Null for non-self /
+  non-admin callers.
+  """
+  defaultTeam: Team
+  email: String
+  emailVerified: Boolean!
+  enableEmailNotification: Boolean!
+  enableInAppNotification: Boolean!
+  enableSMSNotification: Boolean!
+
+  """Empty for non-self / non-admin callers."""
+  escalations: [EventEscalation!]!
+
+  """Empty for non-self / non-admin callers."""
+  feedbacks: [UserFeedback!]!
+  id: String!
+  image: String
+
+  """Null when caller is not authorised to see this field."""
+  isActive: Boolean
+
+  """
+  Preferred UI language code (BCP-47 / ISO 639-1, e.g. "en", "ar"). Defaults to "en".
+  """
+  language: String!
+  name: String!
+
+  """Empty for non-self / non-admin callers."""
+  notifications: [Notification!]!
+
+  """Empty for non-self / non-admin callers."""
+  organisations: [OrganisationUser!]!
+  phoneNumber: String
+
+  """
+  User role: viewer, analyst, admin, or pending. Null when caller is not
+  authorised to see this user's role.
+  """
+  role: String
+
+  """Empty for non-self / non-admin callers."""
+  teamMemberships: [TeamMember!]!
+  updatedAt: DateTime!
+}
+
+type UserActivitySummary {
+  counts: ActivityCountsByAction!
+  total: Int!
+  user: User!
+}
+
+"""Tracks an alert delivered to a user — view status."""
+type UserAlert {
+  alert: Alert!
+  id: String!
+  user: User!
+
+  """When the user viewed this alert."""
+  viewedAt: DateTime
+}
+
+"""A user comment on a signal, event, or crisis, with reply support."""
+type UserComment {
+  comment: String!
+  createdAt: DateTime!
+  crisis: Crisis
+  event: Event
+  id: String!
+
+  """Whether this comment is a reply to another comment."""
+  isCommentReply: Boolean!
+
+  """ID of the comment being replied to, if any."""
+  repliedToCommentId: String
+  signal: Signal
+
+  """Users tagged in this comment."""
+  tags: [CommentTag!]!
+  updatedAt: DateTime!
+  user: User!
+}
+
+"""
+Point-in-time engagement summary derived from auth.login activity.
+All three windows are trailing from `asOf` (inclusive).
+"""
+type UserEngagementMetrics {
+  """
+  Reference moment the windows are anchored to. Defaults to NOW()
+  when the caller doesn't specify it.
+  """
+  asOf: DateTime!
+
+  """Unique users with at least one login in the trailing 24 hours."""
+  dau: Int!
+
+  """
+  Stickiness ratio (DAU / MAU) as a percentage. Industry benchmark:
+  ≥20% indicates a frequently-returning user base. Returns 0 when MAU
+  is 0 so the field is safe to chart without null-handling.
+  """
+  dauMauRatio: Float!
+
+  """Unique users with at least one login in the trailing 30 days."""
+  mau: Int!
+
+  """Unique users with at least one login in the trailing 7 days."""
+  wau: Int!
+}
+
+"""
+User feedback on a signal, event, or crisis — rating and optional text.
+"""
+type UserFeedback {
+  createdAt: DateTime!
+  crisis: Crisis
+  event: Event
+  id: String!
+
+  """Rating from 1 to 5."""
+  rating: Int!
+  signal: Signal
+
+  """Optional textual feedback."""
+  text: String
+  updatedAt: DateTime!
+  user: User!
+}
+
+"""
+A single delivery attempt-sequence to one subscription for one
+incoming event. attemptNumber advances in place across retries.
+"""
+type WebhookDelivery {
+  """1-indexed. 1 = first attempt; up to 5 for retries."""
+  attemptNumber: Int!
+  createdAt: DateTime!
+
+  """
+  Network or transport error message, if the request never got a response.
+  """
+  error: String
+
+  """
+  GlitchTip's event/issue ID. Useful for correlating a delivery
+  back to the source issue in GlitchTip.
+  """
+  eventId: String!
+
+  """Event type extracted from the source payload (e.g. issue.new)."""
+  eventType: String!
+  id: String!
+
+  """
+  Scheduled time of the next retry. Null when there is no next attempt
+  (either succeeded, or exhausted 5 attempts = dead-lettered).
+  """
+  nextRetryAt: DateTime
+
+  """Truncated response body (max 8 KiB)."""
+  responseBody: String
+
+  """Last response HTTP status code, if the target responded."""
+  responseStatus: Int
+
+  """
+  One of: pending, succeeded, retrying, dead. Derived from the fields
+  above so the admin UI doesn't need to reimplement the logic.
+  """
+  status: WebhookDeliveryStatus!
+  subscriptionId: String!
+
+  """Non-null once a 2xx was received. Terminal state."""
+  succeededAt: DateTime
+}
+
+enum WebhookDeliveryStatus {
+  """Exhausted all retry attempts. Admin can manually re-fire."""
+  dead
+
+  """
+  Waiting for the first attempt (rare — the receive route usually attempts inline).
+  """
+  pending
+
+  """Failed at least once; a retry is scheduled."""
+  retrying
+
+  """Delivered — target returned 2xx on some attempt."""
+  succeeded
+}
+
+"""
+Outbound webhook subscription. Every incoming GlitchTip alert is
+fanned out to every active subscription whose event-type filter
+matches. Managed by platform admins.
+"""
+type WebhookSubscription {
+  """
+  Paused subscriptions are skipped during fan-out. Deliveries do
+  NOT resume automatically when re-enabled — only new events fan out.
+  """
+  active: Boolean!
+  createdAt: DateTime!
+
+  """User ID that created this subscription. Kept for audit."""
+  createdBy: String
+
+  """
+  Event-type allowlist. Empty = fire on all events.
+  Values match GlitchTip's 'alias' field (e.g. issue.new, issue.regression, issue.resolved).
+  """
+  eventTypeFilter: [String!]!
+  id: String!
+
+  """Human-readable label shown in the admin UI. Not sent downstream."""
+  name: String!
+
+  """
+  Most-recent delivery attempts for this subscription. Ordered newest first.
+  Capped at 50 in the resolver to keep the admin UI fast.
+  """
+  recentDeliveries: [WebhookDelivery!]!
+
+  """
+  HMAC-SHA256 shared secret used to sign outbound requests.
+  Only returned on create + rotate; null on all other reads to keep
+  the secret out of admin browser DevTools tabs. Rotate via
+  rotateWebhookSubscriptionSecret.
+  """
+  secret: String
+
+  """Target URL that receives HMAC-signed POST requests."""
+  targetUrl: String!
+  updatedAt: DateTime!
+}
