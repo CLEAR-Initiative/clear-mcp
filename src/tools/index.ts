@@ -1,5 +1,6 @@
 import type { LocationIndex } from "../location-index.js";
 import { createFindLocationTool } from "./find-location.js";
+import { listEventsTool } from "./list-events.js";
 import type { ToolDefinition } from "./types.js";
 import { whoamiTool } from "./whoami.js";
 
@@ -14,5 +15,11 @@ export interface ToolDeps {
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function curatedTools(deps: ToolDeps): ToolDefinition<any, any>[] {
-  return [whoamiTool, createFindLocationTool(deps.locationIndex)];
+  return [
+    // Orient
+    whoamiTool,
+    createFindLocationTool(deps.locationIndex),
+    // Monitor
+    listEventsTool,
+  ];
 }

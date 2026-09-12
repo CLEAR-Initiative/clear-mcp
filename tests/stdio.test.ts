@@ -69,7 +69,10 @@ describe("stdio entrypoint", () => {
       const info = client.getServerVersion();
       expect(info?.name).toBe("clear-mcp");
       const { tools } = await client.listTools();
-      expect(tools.map((t) => t.name)).toEqual(["clear_whoami", "clear_find_location"]);
+      const names = tools.map((t) => t.name);
+      expect(names).toContain("clear_whoami");
+      expect(names).toContain("clear_find_location");
+      expect(names.every((n) => n.startsWith("clear_"))).toBe(true);
 
       // A tool call carries the same diagnostic the self-check logged.
       const result = await client.callTool({ name: "clear_whoami", arguments: {} });

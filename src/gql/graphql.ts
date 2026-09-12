@@ -4,6 +4,33 @@ type Exact<T extends { [key: string]: unknown }> = { [K in keyof T]: T[K] };
 /** Internal type. DO NOT USE DIRECTLY. */
 export type Incremental<T> = T | { [P in keyof T]?: P extends ' $fragmentName' | '__typename' ? T[P] : never };
 import { DocumentTypeDecoration } from '@graphql-typed-document-node/core';
+export type EventOrderBy =
+  /** Oldest first by firstSignalCreatedAt. */
+  | 'CREATED_ASC'
+  /** Newest first by firstSignalCreatedAt. */
+  | 'CREATED_DESC'
+  /** Oldest signal first (lastSignalCreatedAt). */
+  | 'LAST_SIGNAL_ASC'
+  /** Newest signal first (lastSignalCreatedAt). */
+  | 'LAST_SIGNAL_DESC'
+  | 'SEVERITY_ASC'
+  | 'SEVERITY_DESC';
+
+export type EventsPageInput = {
+  eventTypes?: Array<string> | null | undefined;
+  /** Filter on event.firstSignalCreatedAt — inclusive. */
+  from?: string | null | undefined;
+  includeDummy?: boolean | null | undefined;
+  limit?: number | null | undefined;
+  locationId?: string | null | undefined;
+  offset?: number | null | undefined;
+  orderBy?: EventOrderBy | null | undefined;
+  severityMax?: number | null | undefined;
+  severityMin?: number | null | undefined;
+  teamId?: string | null | undefined;
+  to?: string | null | undefined;
+};
+
 export type ClearLocationIndexQueryVariables = Exact<{ [key: string]: never; }>;
 
 
@@ -15,6 +42,13 @@ export type ClearSelfCheckQueryVariables = Exact<{ [key: string]: never; }>;
 
 
 export type ClearSelfCheckQuery = { me: { id: string, role: string | null, isActive: boolean | null } | null };
+
+export type ClearListEventsQueryVariables = Exact<{
+  input?: EventsPageInput | null | undefined;
+}>;
+
+
+export type ClearListEventsQuery = { eventsPage: { totalCount: number, hasMore: boolean, items: Array<{ id: string, severity: number | null, types: Array<string>, title: string | null, description: string | null, firstSignalCreatedAt: string, lastSignalCreatedAt: string, startedAt: string | null, originLocation: { id: string, name: string, level: number } | null, destinationLocation: { id: string, name: string, level: number } | null, generalLocation: { id: string, name: string, level: number } | null, signals: Array<{ id: string }> }> } };
 
 export type ClearWhoamiQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -76,6 +110,42 @@ export const ClearSelfCheckDocument = new TypedDocumentString(`
   }
 }
     `) as unknown as TypedDocumentString<ClearSelfCheckQuery, ClearSelfCheckQueryVariables>;
+export const ClearListEventsDocument = new TypedDocumentString(`
+    query ClearListEvents($input: EventsPageInput) {
+  eventsPage(input: $input) {
+    totalCount
+    hasMore
+    items {
+      id
+      severity
+      types
+      title
+      description
+      firstSignalCreatedAt
+      lastSignalCreatedAt
+      startedAt
+      originLocation {
+        id
+        name
+        level
+      }
+      destinationLocation {
+        id
+        name
+        level
+      }
+      generalLocation {
+        id
+        name
+        level
+      }
+      signals {
+        id
+      }
+    }
+  }
+}
+    `) as unknown as TypedDocumentString<ClearListEventsQuery, ClearListEventsQueryVariables>;
 export const ClearWhoamiDocument = new TypedDocumentString(`
     query ClearWhoami {
   me {

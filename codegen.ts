@@ -20,6 +20,9 @@ const config: CodegenConfig = {
       },
       config: {
         documentMode: "string",
+        // String unions instead of TS enums so zod enums and generated
+        // variable types line up without casts.
+        enumsAsTypes: true,
         scalars: {
           DateTime: "string",
           JSON: "unknown",
