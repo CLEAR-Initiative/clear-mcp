@@ -9,6 +9,7 @@ import { listAlertsTool } from "./list-alerts.js";
 import { listEventsTool } from "./list-events.js";
 import { listSignalsTool } from "./list-signals.js";
 import { searchKnowledgeBaseTool } from "./search-knowledge-base.js";
+import { getSituationAnalysisTool } from "./situation-analysis.js";
 import type { ToolDefinition } from "./types.js";
 import { whoamiTool } from "./whoami.js";
 
@@ -40,5 +41,6 @@ export function curatedTools(deps: ToolDeps): ToolDefinition<any, any>[] {
     // Analyse
     listCrisesTool,
     getCrisisTool,
+    getSituationAnalysisTool,
   ];
 }
