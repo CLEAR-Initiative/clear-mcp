@@ -85,6 +85,16 @@ Once published (V1.1) this becomes `"command": "npx", "args": ["-y", "@clear-ini
 |---|---|---|
 | `clear_whoami` | Orient | Caller identity, teams and their scope locations, locale, escape-hatch flag, API URL |
 | `clear_find_location` | Orient | Place name → ranked `locationId`s (levels 0–2) with ancestors; `level` / `withinLocationId` narrowing |
+| `clear_list_alerts` | Monitor | Paginated alerts with status, event severity/types, location, truncated text |
+| `clear_list_events` | Monitor | Paginated events with severity, GLIDE types, signal count, location, truncated text |
+| `clear_list_signals` | Monitor | Paginated signals with source, url, location, truncated text |
+| `clear_count` | Monitor | Totals for signals/events/alerts, grouped by type / severity / day / week / month |
+| `clear_get_alert` / `clear_get_event` / `clear_get_signal` | Monitor | One row by id, untruncated; event carries alert ids and up to 50 signal references |
+
+List tools take `limit` (clamped to 1–25, default 10) and `offset`, and return
+`{ items, totalCount, hasMore, limit, offset }`; text in list items is cut at 500 characters
+with `truncated: true`. Get tools return `{ item }` untruncated, or `{ item: null }`. `teamId`
+(from `clear_whoami`) narrows Monitor tools to a team's location scope; omit it for the global feed.
 
 All tools are read-only. Every result is JSON, both as a text block and as `structuredContent`.
 Failures come back as `isError: true` with `{ code, subCode?, message, upstreamUrl? }` preserved

@@ -4,6 +4,151 @@ type Exact<T extends { [key: string]: unknown }> = { [K in keyof T]: T[K] };
 /** Internal type. DO NOT USE DIRECTLY. */
 export type Incremental<T> = T | { [P in keyof T]?: P extends ' $fragmentName' | '__typename' ? T[P] : never };
 import { DocumentTypeDecoration } from '@graphql-typed-document-node/core';
+export type AlertOrderBy =
+  /** Oldest first by event.firstSignalCreatedAt. */
+  | 'CREATED_ASC'
+  /** Newest first by event.firstSignalCreatedAt. */
+  | 'CREATED_DESC'
+  /** Lowest event severity first. */
+  | 'SEVERITY_ASC'
+  /** Highest event severity first. */
+  | 'SEVERITY_DESC';
+
+/** Publication status of an alert. */
+export type AlertStatus =
+  | 'archived'
+  | 'draft'
+  | 'published';
+
+export type AlertsPageInput = {
+  /**
+   * Glide codes — alert event must contain at least one of these in its
+   * `types` array. Case-sensitive.
+   */
+  eventTypes?: Array<string> | null | undefined;
+  /** Filter on event.firstSignalCreatedAt — inclusive. */
+  from?: string | null | undefined;
+  /** Hide isDummy events when false (default). */
+  includeDummy?: boolean | null | undefined;
+  /** Page size — clamped to [1, 100]. Default 25. */
+  limit?: number | null | undefined;
+  /**
+   * Restrict to alerts whose event sits under this location (or any of
+   * its descendants).
+   */
+  locationId?: string | null | undefined;
+  /** Zero-based row offset. Default 0. */
+  offset?: number | null | undefined;
+  orderBy?: AlertOrderBy | null | undefined;
+  /** Inclusive upper bound on event severity (1-5). */
+  severityMax?: number | null | undefined;
+  /** Inclusive lower bound on event severity (1-5). */
+  severityMin?: number | null | undefined;
+  status?: AlertStatus | null | undefined;
+  /** Apply a team's location-scope filter to the underlying events. */
+  teamId?: string | null | undefined;
+  /** Filter on event.firstSignalCreatedAt — inclusive. */
+  to?: string | null | undefined;
+};
+
+export type EntityKind =
+  | 'alert'
+  | 'event'
+  | 'signal';
+
+export type EntityStatsInput = {
+  entity: EntityKind;
+  eventTypes?: Array<string> | null | undefined;
+  from?: string | null | undefined;
+  groupBy?: StatsGroupBy | null | undefined;
+  includeDummy?: boolean | null | undefined;
+  locationId?: string | null | undefined;
+  severityMax?: number | null | undefined;
+  severityMin?: number | null | undefined;
+  teamId?: string | null | undefined;
+  to?: string | null | undefined;
+};
+
+export type EventOrderBy =
+  /** Oldest first by firstSignalCreatedAt. */
+  | 'CREATED_ASC'
+  /** Newest first by firstSignalCreatedAt. */
+  | 'CREATED_DESC'
+  /** Oldest signal first (lastSignalCreatedAt). */
+  | 'LAST_SIGNAL_ASC'
+  /** Newest signal first (lastSignalCreatedAt). */
+  | 'LAST_SIGNAL_DESC'
+  | 'SEVERITY_ASC'
+  | 'SEVERITY_DESC';
+
+export type EventsPageInput = {
+  eventTypes?: Array<string> | null | undefined;
+  /** Filter on event.firstSignalCreatedAt — inclusive. */
+  from?: string | null | undefined;
+  includeDummy?: boolean | null | undefined;
+  limit?: number | null | undefined;
+  locationId?: string | null | undefined;
+  offset?: number | null | undefined;
+  orderBy?: EventOrderBy | null | undefined;
+  severityMax?: number | null | undefined;
+  severityMin?: number | null | undefined;
+  teamId?: string | null | undefined;
+  to?: string | null | undefined;
+};
+
+export type SignalOrderBy =
+  /** Oldest first by publishedAt. */
+  | 'PUBLISHED_ASC'
+  /** Newest first by publishedAt. */
+  | 'PUBLISHED_DESC'
+  | 'SEVERITY_ASC'
+  | 'SEVERITY_DESC';
+
+/**
+ * Durable processing status for the Dagster event-driven drain.
+ * NEW = ingested, awaiting downstream processing; PROCESSED = classify→group→
+ * alert done; FAILED = terminal failure.
+ */
+export type SignalStatus =
+  | 'FAILED'
+  | 'NEW'
+  | 'PROCESSED';
+
+export type SignalsPageInput = {
+  /** Filter on signal.publishedAt — inclusive. */
+  from?: string | null | undefined;
+  includeDummy?: boolean | null | undefined;
+  limit?: number | null | undefined;
+  locationId?: string | null | undefined;
+  offset?: number | null | undefined;
+  orderBy?: SignalOrderBy | null | undefined;
+  severityMax?: number | null | undefined;
+  severityMin?: number | null | undefined;
+  /** Restrict to signals whose source name is in this list (e.g. ["acled","dataminr"]). */
+  sourceNames?: Array<string> | null | undefined;
+  teamId?: string | null | undefined;
+  to?: string | null | undefined;
+};
+
+export type StatsGroupBy =
+  /**
+   * Group by day / week / month of the entity's primary timestamp.
+   * Buckets are returned with ISO-8601 keys (`YYYY-MM-DD`, `YYYY-Www`,
+   * `YYYY-MM`).
+   */
+  | 'day'
+  | 'month'
+  /** Single bucket — just `total`. Use this for "how many X" queries. */
+  | 'none'
+  /** Group by integer severity (1-5). */
+  | 'severity'
+  /**
+   * Group by event/signal type (event.types[] is unnested; signals use
+   * their source name as the type proxy).
+   */
+  | 'type'
+  | 'week';
+
 export type ClearLocationIndexQueryVariables = Exact<{ [key: string]: never; }>;
 
 
@@ -15,6 +160,55 @@ export type ClearSelfCheckQueryVariables = Exact<{ [key: string]: never; }>;
 
 
 export type ClearSelfCheckQuery = { me: { id: string, role: string | null, isActive: boolean | null } | null };
+
+export type ClearCountQueryVariables = Exact<{
+  input: EntityStatsInput;
+}>;
+
+
+export type ClearCountQuery = { entityStats: { total: number, buckets: Array<{ key: string, count: number }> } };
+
+export type ClearGetAlertQueryVariables = Exact<{
+  id: string;
+}>;
+
+
+export type ClearGetAlertQuery = { alert: { id: string, status: AlertStatus, createdAt: string, updatedAt: string, event: { id: string, severity: number | null, types: Array<string>, title: string | null, description: string | null, firstSignalCreatedAt: string, lastSignalCreatedAt: string, startedAt: string | null, originLocation: { id: string, name: string, level: number } | null, destinationLocation: { id: string, name: string, level: number } | null, generalLocation: { id: string, name: string, level: number } | null } } | null };
+
+export type ClearGetEventQueryVariables = Exact<{
+  id: string;
+}>;
+
+
+export type ClearGetEventQuery = { event: { id: string, severity: number | null, types: Array<string>, title: string | null, description: string | null, firstSignalCreatedAt: string, lastSignalCreatedAt: string, startedAt: string | null, casualties: number | null, populationAffected: string | null, populationDisplaced: string | null, rank: number, isDummy: boolean, originLocation: { id: string, name: string, level: number } | null, destinationLocation: { id: string, name: string, level: number } | null, generalLocation: { id: string, name: string, level: number } | null, alerts: Array<{ id: string, status: AlertStatus }>, signals: Array<{ id: string, publishedAt: string, source: { name: string } }> } | null };
+
+export type ClearGetSignalQueryVariables = Exact<{
+  id: string;
+}>;
+
+
+export type ClearGetSignalQuery = { signal: { id: string, status: SignalStatus, publishedAt: string, collectedAt: string, processedAt: string | null, severity: number | null, casualties: number | null, url: string | null, externalId: string | null, isDummy: boolean, title: string | null, description: string | null, source: { name: string, type: string, reliability: number | null }, originLocation: { id: string, name: string, level: number } | null, destinationLocation: { id: string, name: string, level: number } | null, generalLocation: { id: string, name: string, level: number } | null, events: Array<{ id: string }> } | null };
+
+export type ClearListAlertsQueryVariables = Exact<{
+  input?: AlertsPageInput | null | undefined;
+}>;
+
+
+export type ClearListAlertsQuery = { alertsPage: { totalCount: number, hasMore: boolean, items: Array<{ id: string, status: AlertStatus, createdAt: string, event: { id: string, severity: number | null, types: Array<string>, title: string | null, description: string | null, firstSignalCreatedAt: string, originLocation: { id: string, name: string, level: number } | null, destinationLocation: { id: string, name: string, level: number } | null, generalLocation: { id: string, name: string, level: number } | null } }> } };
+
+export type ClearListEventsQueryVariables = Exact<{
+  input?: EventsPageInput | null | undefined;
+}>;
+
+
+export type ClearListEventsQuery = { eventsPage: { totalCount: number, hasMore: boolean, items: Array<{ id: string, severity: number | null, types: Array<string>, title: string | null, description: string | null, firstSignalCreatedAt: string, lastSignalCreatedAt: string, startedAt: string | null, originLocation: { id: string, name: string, level: number } | null, destinationLocation: { id: string, name: string, level: number } | null, generalLocation: { id: string, name: string, level: number } | null, signals: Array<{ id: string }> }> } };
+
+export type ClearListSignalsQueryVariables = Exact<{
+  input?: SignalsPageInput | null | undefined;
+}>;
+
+
+export type ClearListSignalsQuery = { signalsPage: { totalCount: number, hasMore: boolean, items: Array<{ id: string, publishedAt: string, severity: number | null, url: string | null, title: string | null, description: string | null, source: { name: string }, originLocation: { id: string, name: string, level: number } | null, destinationLocation: { id: string, name: string, level: number } | null, generalLocation: { id: string, name: string, level: number } | null }> } };
 
 export type ClearWhoamiQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -76,6 +270,244 @@ export const ClearSelfCheckDocument = new TypedDocumentString(`
   }
 }
     `) as unknown as TypedDocumentString<ClearSelfCheckQuery, ClearSelfCheckQueryVariables>;
+export const ClearCountDocument = new TypedDocumentString(`
+    query ClearCount($input: EntityStatsInput!) {
+  entityStats(input: $input) {
+    total
+    buckets {
+      key
+      count
+    }
+  }
+}
+    `) as unknown as TypedDocumentString<ClearCountQuery, ClearCountQueryVariables>;
+export const ClearGetAlertDocument = new TypedDocumentString(`
+    query ClearGetAlert($id: String!) {
+  alert(id: $id) {
+    id
+    status
+    createdAt
+    updatedAt
+    event {
+      id
+      severity
+      types
+      title
+      description
+      firstSignalCreatedAt
+      lastSignalCreatedAt
+      startedAt
+      originLocation {
+        id
+        name
+        level
+      }
+      destinationLocation {
+        id
+        name
+        level
+      }
+      generalLocation {
+        id
+        name
+        level
+      }
+    }
+  }
+}
+    `) as unknown as TypedDocumentString<ClearGetAlertQuery, ClearGetAlertQueryVariables>;
+export const ClearGetEventDocument = new TypedDocumentString(`
+    query ClearGetEvent($id: String!) {
+  event(id: $id) {
+    id
+    severity
+    types
+    title
+    description
+    firstSignalCreatedAt
+    lastSignalCreatedAt
+    startedAt
+    casualties
+    populationAffected
+    populationDisplaced
+    rank
+    isDummy
+    originLocation {
+      id
+      name
+      level
+    }
+    destinationLocation {
+      id
+      name
+      level
+    }
+    generalLocation {
+      id
+      name
+      level
+    }
+    alerts {
+      id
+      status
+    }
+    signals {
+      id
+      publishedAt
+      source {
+        name
+      }
+    }
+  }
+}
+    `) as unknown as TypedDocumentString<ClearGetEventQuery, ClearGetEventQueryVariables>;
+export const ClearGetSignalDocument = new TypedDocumentString(`
+    query ClearGetSignal($id: String!) {
+  signal(id: $id) {
+    id
+    status
+    publishedAt
+    collectedAt
+    processedAt
+    severity
+    casualties
+    url
+    externalId
+    isDummy
+    title
+    description
+    source {
+      name
+      type
+      reliability
+    }
+    originLocation {
+      id
+      name
+      level
+    }
+    destinationLocation {
+      id
+      name
+      level
+    }
+    generalLocation {
+      id
+      name
+      level
+    }
+    events {
+      id
+    }
+  }
+}
+    `) as unknown as TypedDocumentString<ClearGetSignalQuery, ClearGetSignalQueryVariables>;
+export const ClearListAlertsDocument = new TypedDocumentString(`
+    query ClearListAlerts($input: AlertsPageInput) {
+  alertsPage(input: $input) {
+    totalCount
+    hasMore
+    items {
+      id
+      status
+      createdAt
+      event {
+        id
+        severity
+        types
+        title
+        description
+        firstSignalCreatedAt
+        originLocation {
+          id
+          name
+          level
+        }
+        destinationLocation {
+          id
+          name
+          level
+        }
+        generalLocation {
+          id
+          name
+          level
+        }
+      }
+    }
+  }
+}
+    `) as unknown as TypedDocumentString<ClearListAlertsQuery, ClearListAlertsQueryVariables>;
+export const ClearListEventsDocument = new TypedDocumentString(`
+    query ClearListEvents($input: EventsPageInput) {
+  eventsPage(input: $input) {
+    totalCount
+    hasMore
+    items {
+      id
+      severity
+      types
+      title
+      description
+      firstSignalCreatedAt
+      lastSignalCreatedAt
+      startedAt
+      originLocation {
+        id
+        name
+        level
+      }
+      destinationLocation {
+        id
+        name
+        level
+      }
+      generalLocation {
+        id
+        name
+        level
+      }
+      signals {
+        id
+      }
+    }
+  }
+}
+    `) as unknown as TypedDocumentString<ClearListEventsQuery, ClearListEventsQueryVariables>;
+export const ClearListSignalsDocument = new TypedDocumentString(`
+    query ClearListSignals($input: SignalsPageInput) {
+  signalsPage(input: $input) {
+    totalCount
+    hasMore
+    items {
+      id
+      publishedAt
+      severity
+      url
+      title
+      description
+      source {
+        name
+      }
+      originLocation {
+        id
+        name
+        level
+      }
+      destinationLocation {
+        id
+        name
+        level
+      }
+      generalLocation {
+        id
+        name
+        level
+      }
+    }
+  }
+}
+    `) as unknown as TypedDocumentString<ClearListSignalsQuery, ClearListSignalsQueryVariables>;
 export const ClearWhoamiDocument = new TypedDocumentString(`
     query ClearWhoami {
   me {
