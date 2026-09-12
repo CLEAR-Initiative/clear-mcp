@@ -51,6 +51,24 @@ export type AlertsPageInput = {
   to?: string | null | undefined;
 };
 
+export type EntityKind =
+  | 'alert'
+  | 'event'
+  | 'signal';
+
+export type EntityStatsInput = {
+  entity: EntityKind;
+  eventTypes?: Array<string> | null | undefined;
+  from?: string | null | undefined;
+  groupBy?: StatsGroupBy | null | undefined;
+  includeDummy?: boolean | null | undefined;
+  locationId?: string | null | undefined;
+  severityMax?: number | null | undefined;
+  severityMin?: number | null | undefined;
+  teamId?: string | null | undefined;
+  to?: string | null | undefined;
+};
+
 export type EventOrderBy =
   /** Oldest first by firstSignalCreatedAt. */
   | 'CREATED_ASC'
@@ -102,6 +120,25 @@ export type SignalsPageInput = {
   to?: string | null | undefined;
 };
 
+export type StatsGroupBy =
+  /**
+   * Group by day / week / month of the entity's primary timestamp.
+   * Buckets are returned with ISO-8601 keys (`YYYY-MM-DD`, `YYYY-Www`,
+   * `YYYY-MM`).
+   */
+  | 'day'
+  | 'month'
+  /** Single bucket — just `total`. Use this for "how many X" queries. */
+  | 'none'
+  /** Group by integer severity (1-5). */
+  | 'severity'
+  /**
+   * Group by event/signal type (event.types[] is unnested; signals use
+   * their source name as the type proxy).
+   */
+  | 'type'
+  | 'week';
+
 export type ClearLocationIndexQueryVariables = Exact<{ [key: string]: never; }>;
 
 
@@ -113,6 +150,13 @@ export type ClearSelfCheckQueryVariables = Exact<{ [key: string]: never; }>;
 
 
 export type ClearSelfCheckQuery = { me: { id: string, role: string | null, isActive: boolean | null } | null };
+
+export type ClearCountQueryVariables = Exact<{
+  input: EntityStatsInput;
+}>;
+
+
+export type ClearCountQuery = { entityStats: { total: number, buckets: Array<{ key: string, count: number }> } };
 
 export type ClearListAlertsQueryVariables = Exact<{
   input?: AlertsPageInput | null | undefined;
@@ -195,6 +239,17 @@ export const ClearSelfCheckDocument = new TypedDocumentString(`
   }
 }
     `) as unknown as TypedDocumentString<ClearSelfCheckQuery, ClearSelfCheckQueryVariables>;
+export const ClearCountDocument = new TypedDocumentString(`
+    query ClearCount($input: EntityStatsInput!) {
+  entityStats(input: $input) {
+    total
+    buckets {
+      key
+      count
+    }
+  }
+}
+    `) as unknown as TypedDocumentString<ClearCountQuery, ClearCountQueryVariables>;
 export const ClearListAlertsDocument = new TypedDocumentString(`
     query ClearListAlerts($input: AlertsPageInput) {
   alertsPage(input: $input) {
