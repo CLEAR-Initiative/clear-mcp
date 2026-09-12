@@ -121,7 +121,13 @@ bun run lint
 bun run typecheck        # runs codegen first
 bun run build            # codegen + tsc → dist/ (Node 20+ compatible ESM)
 bun run refresh-schema   # re-snapshot schema.graphql from a dev/staging clear-api
+bun run test:live        # live suite; needs CLEAR_API_URL + CLEAR_MCP_TEST_KEY_{VIEWER,PENDING,REVOKED}
 ```
+
+The live suite (`tests/live/`) proves the three things fixtures cannot — a pending key gets
+`FORBIDDEN` / `PENDING_APPROVAL`, a revoked key gets `UNAUTHENTICATED`, a viewer key works — and
+skips cleanly when the env vars are unset or the target is unreachable. Nightly CI runs it with
+`CLEAR_MCP_LIVE=1` (skip becomes failure) against staging, together with a schema-drift check.
 
 `schema.graphql` is the committed copy of clear-api's SDL. Tool documents are typed against it
 by `graphql-codegen` (output in `src/gql/`, committed), and the test suite validates every outgoing
