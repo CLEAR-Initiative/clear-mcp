@@ -9,7 +9,13 @@ import { z } from "zod";
 export const LIST_LIMIT = { min: 1, max: 25, default: 10 } as const;
 export const TRUNCATE_AT = 500;
 
-export function clampLimit(limit: number | undefined, bounds = LIST_LIMIT): number {
+export interface LimitBounds {
+  readonly min: number;
+  readonly max: number;
+  readonly default: number;
+}
+
+export function clampLimit(limit: number | undefined, bounds: LimitBounds = LIST_LIMIT): number {
   return Math.min(bounds.max, Math.max(bounds.min, limit ?? bounds.default));
 }
 

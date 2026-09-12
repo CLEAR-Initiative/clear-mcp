@@ -7,6 +7,7 @@ import { getSignalTool } from "./get-signal.js";
 import { listAlertsTool } from "./list-alerts.js";
 import { listEventsTool } from "./list-events.js";
 import { listSignalsTool } from "./list-signals.js";
+import { searchKnowledgeBaseTool } from "./search-knowledge-base.js";
 import type { ToolDefinition } from "./types.js";
 import { whoamiTool } from "./whoami.js";
 
@@ -25,6 +26,8 @@ export function curatedTools(deps: ToolDeps): ToolDefinition<any, any>[] {
     // Orient
     whoamiTool,
     createFindLocationTool(deps.locationIndex),
+    // Retrieve
+    searchKnowledgeBaseTool,
     // Monitor
     listAlertsTool,
     listEventsTool,

@@ -51,6 +51,16 @@ export type AlertsPageInput = {
   to?: string | null | undefined;
 };
 
+/**
+ * Half-open date window (from inclusive, to exclusive) used to
+ * filter `searchKnowledgebase` by the chunk's extracted event
+ * window. Chunks whose time_range overlaps the window match.
+ */
+export type DateRangeInput = {
+  from?: string | null | undefined;
+  to?: string | null | undefined;
+};
+
 export type EntityKind =
   | 'alert'
   | 'event'
@@ -94,6 +104,39 @@ export type EventsPageInput = {
   severityMin?: number | null | undefined;
   teamId?: string | null | undefined;
   to?: string | null | undefined;
+};
+
+/**
+ * Optional filters applied BEFORE the retrieval step — array
+ * filters use overlap semantics (any-of), the time range uses
+ * inclusive intersection. Leave a field null to skip that filter.
+ */
+export type KnowledgebaseFilters = {
+  /**
+   * Scope to one country: keep only chunks tagged with a location in this
+   * A0's subtree (itself or any descendant admin unit). Chunk locations are
+   * resolved to leaf admin ids, so a bare `locationIds=[A0]` would miss them —
+   * this expands the A0 to its subtree server-side via the locations tree. The
+   * situation-analysis RAG uses this so a country's analysis never cites reports
+   * about another country.
+   */
+  countryLocationId?: string | null | undefined;
+  /**
+   * Restrict to rows written by the currently-configured
+   * embedding provider + model. Default true — mixing embedding
+   * spaces yields meaningless distances. Set false only when
+   * inspecting historical rows via BM25-only search (no vector
+   * step will be run for filtered-out rows).
+   */
+  currentEmbeddingModelOnly?: boolean | null | undefined;
+  /** Match rows tagged with ANY of these event-type tags. */
+  eventTypes?: Array<string> | null | undefined;
+  /** Match rows tagged with ANY of these `locations.id` values. */
+  locationIds?: Array<string> | null | undefined;
+  /** Match rows tagged with ANY of these SAF sectors. */
+  needSectors?: Array<string> | null | undefined;
+  /** Match rows whose extracted event window overlaps this range. */
+  timeRange?: DateRangeInput | null | undefined;
 };
 
 export type SignalOrderBy =
@@ -209,6 +252,15 @@ export type ClearListSignalsQueryVariables = Exact<{
 
 
 export type ClearListSignalsQuery = { signalsPage: { totalCount: number, hasMore: boolean, items: Array<{ id: string, publishedAt: string, severity: number | null, url: string | null, title: string | null, description: string | null, source: { name: string }, originLocation: { id: string, name: string, level: number } | null, destinationLocation: { id: string, name: string, level: number } | null, generalLocation: { id: string, name: string, level: number } | null }> } };
+
+export type ClearSearchKnowledgeBaseQueryVariables = Exact<{
+  query: string;
+  filters?: KnowledgebaseFilters | null | undefined;
+  limit?: number | null | undefined;
+}>;
+
+
+export type ClearSearchKnowledgeBaseQuery = { searchKnowledgebase: Array<{ id: string, reportId: string, reportTitle: string, sourceUrl: string, publishedAt: string | null, pageStart: number, pageEnd: number, score: number, locationIds: Array<string>, eventTypes: Array<string>, needSectors: Array<string>, figureKind: string | null, chunkText: string }> };
 
 export type ClearWhoamiQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -508,6 +560,25 @@ export const ClearListSignalsDocument = new TypedDocumentString(`
   }
 }
     `) as unknown as TypedDocumentString<ClearListSignalsQuery, ClearListSignalsQueryVariables>;
+export const ClearSearchKnowledgeBaseDocument = new TypedDocumentString(`
+    query ClearSearchKnowledgeBase($query: String!, $filters: KnowledgebaseFilters, $limit: Int) {
+  searchKnowledgebase(query: $query, filters: $filters, limit: $limit) {
+    id
+    reportId
+    reportTitle
+    sourceUrl
+    publishedAt
+    pageStart
+    pageEnd
+    score
+    locationIds
+    eventTypes
+    needSectors
+    figureKind
+    chunkText
+  }
+}
+    `) as unknown as TypedDocumentString<ClearSearchKnowledgeBaseQuery, ClearSearchKnowledgeBaseQueryVariables>;
 export const ClearWhoamiDocument = new TypedDocumentString(`
     query ClearWhoami {
   me {
