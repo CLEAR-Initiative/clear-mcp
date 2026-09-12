@@ -21,11 +21,15 @@ async function main(): Promise<void> {
     throw err;
   }
 
-  const { server, log } = createServer({ config });
+  const { server, log, selfCheck } = createServer({ config });
   log.info({ version: VERSION, apiUrl: config.apiUrl, locale: config.locale }, "starting clear-mcp");
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
+
+  // Diagnose the key/URL once, after the transport is up so a slow or dead
+  // clear-api never delays `initialize`. Failure only logs; nothing is cached.
+  void selfCheck();
 }
 
 main().catch((err) => {

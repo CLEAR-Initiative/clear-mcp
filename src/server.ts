@@ -15,14 +15,37 @@ export interface CreateServerOptions {
   fetch?: FetchLike;
   /** Defaults to a pino logger on stderr at `config.logLevel`. */
   log?: Logger;
+  /** Upstream per-request deadline in ms (default 10 000). */
+  upstreamTimeoutMs?: number;
 }
+
+export type SelfCheckResult =
+  | { ok: true; caller: { id: string; role: string | null; isActive: boolean | null } }
+  | { ok: false; error: ToolError };
 
 export interface ClearMcpServer {
   server: McpServer;
   upstream: Upstream;
   log: Logger;
   config: Config;
+  /**
+   * The startup self-check: one `me` query. A failure is logged at `error`
+   * with the normalised code and is NOT remembered — tools issue their own
+   * requests and fail with the same diagnostic, so a key approved after
+   * startup works without a restart.
+   */
+  selfCheck(): Promise<SelfCheckResult>;
 }
+
+export const SELF_CHECK_DOCUMENT = /* GraphQL */ `
+  query ClearSelfCheck {
+    me {
+      id
+      role
+      isActive
+    }
+  }
+`;
 
 /**
  * Build the McpServer with every Curated tool registered. Transport-agnostic:
@@ -33,7 +56,7 @@ export function createServer(opts: CreateServerOptions): ClearMcpServer {
   const { config } = opts;
   const log = opts.log ?? (config.logLevel === "silent" ? silentLogger() : createLogger(config.logLevel));
   const fetchImpl: FetchLike = opts.fetch ?? ((input, init) => globalThis.fetch(input, init));
-  const upstream = createUpstream({ config, fetch: fetchImpl, log });
+  const upstream = createUpstream({ config, fetch: fetchImpl, log, timeoutMs: opts.upstreamTimeoutMs });
 
   const server = new McpServer(
     { name: "clear-mcp", version: VERSION },
@@ -51,7 +74,34 @@ export function createServer(opts: CreateServerOptions): ClearMcpServer {
     registerCuratedTool(server, tool, { config, upstream, log });
   }
 
-  return { server, upstream, log, config };
+  async function selfCheck(): Promise<SelfCheckResult> {
+    const res = await upstream.request<{
+      me: { id: string; role: string | null; isActive: boolean | null } | null;
+    }>({ document: SELF_CHECK_DOCUMENT, operationName: "ClearSelfCheck", toolName: "self-check" });
+    const outcome: SelfCheckResult = !res.ok
+      ? { ok: false, error: res.error }
+      : res.data.me === null
+        ? {
+            ok: false,
+            error: {
+              code: "UNAUTHENTICATED",
+              message: "clear-api did not recognise the configured CLEAR_API_KEY (me is null).",
+            },
+          }
+        : { ok: true, caller: res.data.me };
+
+    if (outcome.ok) {
+      log.info({ caller: outcome.caller, apiUrl: config.apiUrl }, "self-check ok");
+    } else {
+      log.error(
+        { code: outcome.error.code, subCode: outcome.error.subCode, message: outcome.error.message, apiUrl: config.apiUrl },
+        "self-check failed; tools will report the same error until it is resolved",
+      );
+    }
+    return outcome;
+  }
+
+  return { server, upstream, log, config, selfCheck };
 }
 
 function registerCuratedTool(

@@ -33,7 +33,7 @@ interface GraphQLResponseBody<T> {
   errors?: GraphQLErrorShape[];
 }
 
-const TIMEOUT_MS = 10_000;
+export const DEFAULT_TIMEOUT_MS = 10_000;
 
 /**
  * The single GraphQL client. Every request carries the Consumer's key as
@@ -46,9 +46,12 @@ export function createUpstream(opts: {
   config: Config;
   fetch: FetchLike;
   log: Logger;
+  /** Per-request deadline; defaults to 10 s. Injectable so tests can hit it. */
+  timeoutMs?: number;
 }): Upstream {
   const endpoint = graphqlEndpoint(opts.config);
   const { fetch, log, config } = opts;
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   async function request<T>(req: UpstreamRequest): Promise<UpstreamResult<T>> {
     const headers: Record<string, string> = {
@@ -71,10 +74,15 @@ export function createUpstream(opts: {
         method: "POST",
         headers,
         body,
-        signal: AbortSignal.timeout(TIMEOUT_MS),
+        signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const timedOut = err instanceof Error && err.name === "TimeoutError";
+      const message = timedOut
+        ? `timed out after ${timeoutMs} ms`
+        : err instanceof Error
+          ? err.message
+          : String(err);
       log.error({ tool: req.toolName, op: req.operationName, err: message }, "upstream unreachable");
       return {
         ok: false,

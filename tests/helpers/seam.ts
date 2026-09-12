@@ -8,9 +8,10 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { Writable } from "node:stream";
+import pino from "pino";
 import { parseConfig } from "../../src/config.js";
-import { silentLogger } from "../../src/logger.js";
-import { createServer } from "../../src/server.js";
+import { createServer, type ClearMcpServer } from "../../src/server.js";
 import type { FetchLike } from "../../src/upstream.js";
 
 export interface RecordedRequest {
@@ -73,7 +74,7 @@ export function createFixtureFetch(initial: Record<string, Responder | FixtureRe
     if (!responder) {
       throw new Error(`No fixture responder registered for operation "${body.operationName}"`);
     }
-    const res = await responder(recorded.variables, recorded);
+    const res = await withAbort(responder(recorded.variables, recorded), init.signal ?? undefined);
 
     if ("reject" in res) throw res.reject;
     if ("status" in res) {
@@ -91,15 +92,37 @@ export function createFixtureFetch(initial: Record<string, Responder | FixtureRe
   return { fetch, requests, on };
 }
 
+/** Reject when the request's AbortSignal fires (so timeouts are testable). */
+function withAbort<T>(p: T | Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return Promise.resolve(p);
+  return new Promise<T>((resolve, reject) => {
+    if (signal.aborted) return reject(signal.reason);
+    signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+    Promise.resolve(p).then(resolve, reject);
+  });
+}
+
+/** A responder that never answers — pair with a short `upstreamTimeoutMs`. */
+export const NEVER: Responder = () => new Promise<FixtureResponse>(() => {});
+
 export const TEST_ENV = {
   CLEAR_API_URL: "https://api.clear.test",
   CLEAR_API_KEY: "sk_live_test_key_000",
 } as const;
 
+export interface LogLine {
+  level: number;
+  msg: string;
+  [key: string]: unknown;
+}
+
 export interface Seam {
   client: Client;
   fixtures: FixtureFetch;
   requests: RecordedRequest[];
+  /** Every pino line the server wrote (parsed JSON), for asserting diagnostics. */
+  logs: LogLine[];
+  selfCheck: ClearMcpServer["selfCheck"];
   callTool(name: string, args?: Record<string, unknown>): Promise<CallToolResult>;
   close(): Promise<void>;
 }
@@ -111,10 +134,28 @@ export interface Seam {
 export async function connect(opts: {
   env?: Record<string, string | undefined>;
   fixtures?: Record<string, Responder | FixtureResponse>;
+  upstreamTimeoutMs?: number;
 } = {}): Promise<Seam> {
   const config = parseConfig({ ...TEST_ENV, ...opts.env });
   const fixtures = createFixtureFetch(opts.fixtures);
-  const { server } = createServer({ config, fetch: fixtures.fetch, log: silentLogger() });
+  const logs: LogLine[] = [];
+  const log = pino(
+    { level: "trace" },
+    new Writable({
+      write(chunk, _enc, cb) {
+        for (const line of String(chunk).split("\n")) {
+          if (line.trim()) logs.push(JSON.parse(line) as LogLine);
+        }
+        cb();
+      },
+    }),
+  );
+  const { server, selfCheck } = createServer({
+    config,
+    fetch: fixtures.fetch,
+    log,
+    upstreamTimeoutMs: opts.upstreamTimeoutMs,
+  });
 
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "seam-test-client", version: "0.0.0" });
@@ -125,6 +166,8 @@ export async function connect(opts: {
     client,
     fixtures,
     requests: fixtures.requests,
+    logs,
+    selfCheck,
     callTool: (name, args = {}) =>
       client.callTool({ name, arguments: args }) as Promise<CallToolResult>,
     close: async () => {

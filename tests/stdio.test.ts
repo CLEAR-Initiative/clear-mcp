@@ -48,7 +48,8 @@ describe("stdio entrypoint", () => {
     expect(stderr).toContain("CLEAR_MCP_LOCALE");
   });
 
-  it("answers initialize and lists tools over stdio", async () => {
+  it("answers initialize and lists tools over stdio even when the self-check fails", async () => {
+    // 127.0.0.1:1 refuses connections, so the startup `me` query fails fast.
     const transport = new StdioClientTransport({
       command: "bun",
       args: BIN,
@@ -56,17 +57,37 @@ describe("stdio entrypoint", () => {
         PATH: process.env.PATH ?? "",
         CLEAR_API_URL: "http://127.0.0.1:1",
         CLEAR_API_KEY: "sk_live_x",
-        CLEAR_MCP_LOG_LEVEL: "silent",
+        CLEAR_MCP_LOG_LEVEL: "error",
       },
       stderr: "pipe",
     });
+    let stderr = "";
+    transport.stderr?.on("data", (d) => (stderr += String(d)));
     const client = new Client({ name: "stdio-test", version: "0.0.0" });
     try {
       await client.connect(transport);
       const info = client.getServerVersion();
       expect(info?.name).toBe("clear-mcp");
       const { tools } = await client.listTools();
-      expect(tools.map((t) => t.name)).toContain("clear_whoami");
+      expect(tools.map((t) => t.name)).toEqual(["clear_whoami", "clear_find_location"]);
+
+      // A tool call carries the same diagnostic the self-check logged.
+      const result = await client.callTool({ name: "clear_whoami", arguments: {} });
+      expect(result.isError).toBe(true);
+      const text = (result.content as Array<{ type: string; text?: string }>)[0]?.text ?? "";
+      expect(JSON.parse(text)).toMatchObject({
+        code: "UPSTREAM_UNAVAILABLE",
+        upstreamUrl: "http://127.0.0.1:1/graphql",
+      });
+
+      // The self-check failure went to stderr only (stdout stayed protocol-clean,
+      // or the client above would have failed to parse a frame).
+      const deadline = Date.now() + 5_000;
+      while (!stderr.includes("self-check failed") && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      expect(stderr).toContain("self-check failed");
+      expect(stderr).toContain("UPSTREAM_UNAVAILABLE");
     } finally {
       await client.close();
     }
