@@ -1,0 +1,75 @@
+# Promotes Exponential Tickets QA -> DONE when their PR merges into main.
+#
+# main is this repo's deploy trigger (docs/agents/git-flow.md): nothing is
+# deployed in V1, so "on trunk" is what DONE means here. The merged PR is
+# resolved back to its Ticket(s) by prUrl (the linkage /ship-ticket writes);
+# a Rollup PR's child PRs are picked up from its commit log. Requirement
+# ticking is deliberately NOT wired here: the V1 tickets share one scope, so
+# the first merge would over-claim every V1 requirement.
+#
+# Secret: EXPONENTIAL_TOKEN -- the `claude` agent service-account JWT, so the
+# "Shipped" comments are attributed to the agent, not a person.
+name: Promote Exponential Tickets
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+env:
+  EXPO_API_URL: https://www.exponential.im
+  EXPO_PRODUCT: clear
+  EXPO_WORKSPACE: clear
+jobs:
+  promote:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - run: npm i -g exponential-cli
+      - name: Auth
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPONENTIAL_TOKEN }}
+        run: exponential auth login --token "$EXPO_TOKEN" --api-url "$EXPO_API_URL"
+
+      - name: Resolve merged PR -> Tickets
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REPO_URL: ${{ github.event.pull_request.base.repo.html_url }}
+        run: |
+          set -euo pipefail
+          # This PR, plus any child feature PRs referenced from a Rollup PR's
+          # commit log (a Rollup PR promotes already-merged work along the chain,
+          # so its own URL is on no Ticket -- its children's URLs are).
+          {
+            echo "$PR_URL"
+            # `|| true`: grep exits 1 when a PR's commits contain no #123
+            # refs, which is the NORMAL case for a plain feature PR. Without
+            # this, pipefail + set -e kill the step on every non-rollup merge.
+            git log "$BASE_SHA..$HEAD_SHA" --format=%B \
+              | { grep -oE '#[0-9]+' || true; } | tr -d '#' | sort -u \
+              | sed "s@^@${REPO_URL}/pull/@"
+          } | sort -u > /tmp/prs
+          jq -R -s -c 'split("\n") | map(select(length > 0))' /tmp/prs > /tmp/prs.json
+          # Client-side prUrl filter: the CLI's --pr flag is accepted but ignored.
+          exponential tickets list \
+            --product "$EXPO_PRODUCT" --workspace "$EXPO_WORKSPACE" --json > /tmp/all.json
+          jq --slurpfile prs /tmp/prs.json \
+            '[(if type == "array" then . else .tickets end)[]
+              | select(.prUrl != null and (.prUrl as $u | $prs[0] | index($u)))]' \
+            /tmp/all.json > /tmp/tickets.json
+          echo "Matched $(jq length /tmp/tickets.json) ticket(s):"
+          jq -r '.[] | "  #\(.number) \(.status) \(.title)"' /tmp/tickets.json
+
+      - name: Promote
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          set -euo pipefail
+          jq -r '.[].id' /tmp/tickets.json | while read -r cuid; do
+            exponential tickets update --id "$cuid" --status DONE
+            exponential tickets comment add --id "$cuid" -m "Shipped: $PR_URL"
+          done
