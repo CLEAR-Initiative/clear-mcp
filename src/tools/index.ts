@@ -1,12 +1,17 @@
 import type { LocationIndex } from "../location-index.js";
 import { countTool } from "./count.js";
+import { getCrisisTool, listCrisesTool } from "./crises.js";
+import { getDatapointsTool } from "./get-datapoints.js";
 import { createFindLocationTool } from "./find-location.js";
 import { getAlertTool } from "./get-alert.js";
 import { getEventTool } from "./get-event.js";
 import { getSignalTool } from "./get-signal.js";
 import { listAlertsTool } from "./list-alerts.js";
 import { listEventsTool } from "./list-events.js";
+import { listFiguresTool } from "./list-figures.js";
 import { listSignalsTool } from "./list-signals.js";
+import { searchKnowledgeBaseTool } from "./search-knowledge-base.js";
+import { getSituationAnalysisTool } from "./situation-analysis.js";
 import type { ToolDefinition } from "./types.js";
 import { whoamiTool } from "./whoami.js";
 
@@ -25,6 +30,8 @@ export function curatedTools(deps: ToolDeps): ToolDefinition<any, any>[] {
     // Orient
     whoamiTool,
     createFindLocationTool(deps.locationIndex),
+    // Retrieve
+    searchKnowledgeBaseTool,
     // Monitor
     listAlertsTool,
     listEventsTool,
@@ -33,5 +40,11 @@ export function curatedTools(deps: ToolDeps): ToolDefinition<any, any>[] {
     getAlertTool,
     getEventTool,
     getSignalTool,
+    // Analyse
+    listCrisesTool,
+    getCrisisTool,
+    getSituationAnalysisTool,
+    getDatapointsTool,
+    listFiguresTool,
   ];
 }

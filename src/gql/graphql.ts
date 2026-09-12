@@ -51,6 +51,25 @@ export type AlertsPageInput = {
   to?: string | null | undefined;
 };
 
+/**
+ * Durable enrichment status for the Dagster drain. PENDING = needs
+ * (re)enrichment (set on crisis create / event add / event remove);
+ * ENRICHED = narrative/scenarios/needs-analysis current.
+ */
+export type CrisisEnrichmentStatus =
+  | 'ENRICHED'
+  | 'PENDING';
+
+/**
+ * Half-open date window (from inclusive, to exclusive) used to
+ * filter `searchKnowledgebase` by the chunk's extracted event
+ * window. Chunks whose time_range overlaps the window match.
+ */
+export type DateRangeInput = {
+  from?: string | null | undefined;
+  to?: string | null | undefined;
+};
+
 export type EntityKind =
   | 'alert'
   | 'event'
@@ -94,6 +113,39 @@ export type EventsPageInput = {
   severityMin?: number | null | undefined;
   teamId?: string | null | undefined;
   to?: string | null | undefined;
+};
+
+/**
+ * Optional filters applied BEFORE the retrieval step — array
+ * filters use overlap semantics (any-of), the time range uses
+ * inclusive intersection. Leave a field null to skip that filter.
+ */
+export type KnowledgebaseFilters = {
+  /**
+   * Scope to one country: keep only chunks tagged with a location in this
+   * A0's subtree (itself or any descendant admin unit). Chunk locations are
+   * resolved to leaf admin ids, so a bare `locationIds=[A0]` would miss them —
+   * this expands the A0 to its subtree server-side via the locations tree. The
+   * situation-analysis RAG uses this so a country's analysis never cites reports
+   * about another country.
+   */
+  countryLocationId?: string | null | undefined;
+  /**
+   * Restrict to rows written by the currently-configured
+   * embedding provider + model. Default true — mixing embedding
+   * spaces yields meaningless distances. Set false only when
+   * inspecting historical rows via BM25-only search (no vector
+   * step will be run for filtered-out rows).
+   */
+  currentEmbeddingModelOnly?: boolean | null | undefined;
+  /** Match rows tagged with ANY of these event-type tags. */
+  eventTypes?: Array<string> | null | undefined;
+  /** Match rows tagged with ANY of these `locations.id` values. */
+  locationIds?: Array<string> | null | undefined;
+  /** Match rows tagged with ANY of these SAF sectors. */
+  needSectors?: Array<string> | null | undefined;
+  /** Match rows whose extracted event window overlaps this range. */
+  timeRange?: DateRangeInput | null | undefined;
 };
 
 export type SignalOrderBy =
@@ -168,12 +220,36 @@ export type ClearCountQueryVariables = Exact<{
 
 export type ClearCountQuery = { entityStats: { total: number, buckets: Array<{ key: string, count: number }> } };
 
+export type ClearListCrisesQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type ClearListCrisesQuery = { crises: Array<{ id: string, severity: number, enrichmentStatus: CrisisEnrichmentStatus, title: string | null, summary: string | null, populationAffected: string | null, populationInArea: string | null, createdAt: string, updatedAt: string, generalLocation: { id: string, name: string, level: number } | null, events: Array<{ id: string }> }> };
+
+export type ClearGetCrisisQueryVariables = Exact<{
+  id: string;
+}>;
+
+
+export type ClearGetCrisisQuery = { crisis: { id: string, severity: number, enrichmentStatus: CrisisEnrichmentStatus, title: string | null, summary: string | null, scenarios: unknown, needs: unknown, populationAffected: string | null, populationInArea: string | null, createdAt: string, updatedAt: string, generalLocation: { id: string, name: string, level: number } | null, events: Array<{ id: string }> } | null };
+
 export type ClearGetAlertQueryVariables = Exact<{
   id: string;
 }>;
 
 
 export type ClearGetAlertQuery = { alert: { id: string, status: AlertStatus, createdAt: string, updatedAt: string, event: { id: string, severity: number | null, types: Array<string>, title: string | null, description: string | null, firstSignalCreatedAt: string, lastSignalCreatedAt: string, startedAt: string | null, originLocation: { id: string, name: string, level: number } | null, destinationLocation: { id: string, name: string, level: number } | null, generalLocation: { id: string, name: string, level: number } | null } } | null };
+
+export type ClearGetDatapointsQueryVariables = Exact<{
+  locationId?: string | null | undefined;
+  windowKind: string;
+  windowStart: string;
+  windowEnd: string;
+  schemaVersion?: string | null | undefined;
+  asOf?: string | null | undefined;
+}>;
+
+
+export type ClearGetDatapointsQuery = { aggregatedDatapoint: { id: string, locationId: string | null, windowKind: string, windowStart: string, windowEnd: string, schemaVersion: string, computedAt: string, onDemand: boolean, reportCount: number, dataQualityScore: number, contributingReportIds: Array<string>, oldestSourceAt: string, newestSourceAt: string, data: unknown } | null };
 
 export type ClearGetEventQueryVariables = Exact<{
   id: string;
@@ -203,12 +279,58 @@ export type ClearListEventsQueryVariables = Exact<{
 
 export type ClearListEventsQuery = { eventsPage: { totalCount: number, hasMore: boolean, items: Array<{ id: string, severity: number | null, types: Array<string>, title: string | null, description: string | null, firstSignalCreatedAt: string, lastSignalCreatedAt: string, startedAt: string | null, originLocation: { id: string, name: string, level: number } | null, destinationLocation: { id: string, name: string, level: number } | null, generalLocation: { id: string, name: string, level: number } | null, signals: Array<{ id: string }> }> } };
 
+export type ClearListFiguresQueryVariables = Exact<{
+  reportId?: string | null | undefined;
+  locationIds?: Array<string> | string | null | undefined;
+  eventTypes?: Array<string> | string | null | undefined;
+  needSectors?: Array<string> | string | null | undefined;
+  kinds?: Array<string> | string | null | undefined;
+  timeRangeStart?: string | null | undefined;
+  timeRangeEnd?: string | null | undefined;
+  first?: number | null | undefined;
+  after?: string | null | undefined;
+}>;
+
+
+export type ClearListFiguresQuery = { reportFigures: Array<{ id: string, reportId: string, reportTitle: string, sourceUrl: string, pageNumber: number, kind: string, isFullPage: boolean, s3Key: string, locationIds: Array<string>, eventTypes: Array<string>, needSectors: Array<string>, timeRangeStart: string | null, timeRangeEnd: string | null, title: string | null, description: string | null, transcription: unknown }> };
+
 export type ClearListSignalsQueryVariables = Exact<{
   input?: SignalsPageInput | null | undefined;
 }>;
 
 
 export type ClearListSignalsQuery = { signalsPage: { totalCount: number, hasMore: boolean, items: Array<{ id: string, publishedAt: string, severity: number | null, url: string | null, title: string | null, description: string | null, source: { name: string }, originLocation: { id: string, name: string, level: number } | null, destinationLocation: { id: string, name: string, level: number } | null, generalLocation: { id: string, name: string, level: number } | null }> } };
+
+export type ClearSearchKnowledgeBaseQueryVariables = Exact<{
+  query: string;
+  filters?: KnowledgebaseFilters | null | undefined;
+  limit?: number | null | undefined;
+}>;
+
+
+export type ClearSearchKnowledgeBaseQuery = { searchKnowledgebase: Array<{ id: string, reportId: string, reportTitle: string, sourceUrl: string, publishedAt: string | null, pageStart: number, pageEnd: number, score: number, locationIds: Array<string>, eventTypes: Array<string>, needSectors: Array<string>, figureKind: string | null, chunkText: string }> };
+
+export type ClearGetSituationAnalysisQueryVariables = Exact<{
+  countryLocationId: string;
+  year?: number | null | undefined;
+  windowKind?: string | null | undefined;
+  windowStart?: string | null | undefined;
+  schemaVersion?: string | null | undefined;
+}>;
+
+
+export type ClearGetSituationAnalysisQuery = { situationAnalysis: { id: string, countryLocationId: string, windowKind: string, windowStart: string, windowEnd: string, schemaVersion: string, generatedAt: string, generatedByModel: string, sourceReportIds: Array<string>, data: unknown } | null };
+
+export type SituationAnalysisFieldsFragment = { id: string, countryLocationId: string, windowKind: string, windowStart: string, windowEnd: string, schemaVersion: string, generatedAt: string, generatedByModel: string, sourceReportIds: Array<string>, data: unknown };
+
+export type ClearSituationAnalysisHistoryQueryVariables = Exact<{
+  countryLocationId: string;
+  limit?: number | null | undefined;
+  schemaVersion?: string | null | undefined;
+}>;
+
+
+export type ClearSituationAnalysisHistoryQuery = { situationAnalysesForCountry: Array<{ id: string, countryLocationId: string, windowKind: string, windowStart: string, windowEnd: string, schemaVersion: string, generatedAt: string, generatedByModel: string, sourceReportIds: Array<string>, data: unknown }> };
 
 export type ClearWhoamiQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -242,6 +364,20 @@ export const IndexedLocationFragmentDoc = new TypedDocumentString(`
   ancestorIds
 }
     `, {"fragmentName":"IndexedLocation"}) as unknown as TypedDocumentString<IndexedLocationFragment, unknown>;
+export const SituationAnalysisFieldsFragmentDoc = new TypedDocumentString(`
+    fragment SituationAnalysisFields on SituationAnalysis {
+  id
+  countryLocationId
+  windowKind
+  windowStart
+  windowEnd
+  schemaVersion
+  generatedAt
+  generatedByModel
+  sourceReportIds
+  data
+}
+    `, {"fragmentName":"SituationAnalysisFields"}) as unknown as TypedDocumentString<SituationAnalysisFieldsFragment, unknown>;
 export const ClearLocationIndexDocument = new TypedDocumentString(`
     query ClearLocationIndex {
   countries: locations(level: 0) {
@@ -281,6 +417,54 @@ export const ClearCountDocument = new TypedDocumentString(`
   }
 }
     `) as unknown as TypedDocumentString<ClearCountQuery, ClearCountQueryVariables>;
+export const ClearListCrisesDocument = new TypedDocumentString(`
+    query ClearListCrises {
+  crises {
+    id
+    severity
+    enrichmentStatus
+    title
+    summary
+    populationAffected
+    populationInArea
+    createdAt
+    updatedAt
+    generalLocation {
+      id
+      name
+      level
+    }
+    events {
+      id
+    }
+  }
+}
+    `) as unknown as TypedDocumentString<ClearListCrisesQuery, ClearListCrisesQueryVariables>;
+export const ClearGetCrisisDocument = new TypedDocumentString(`
+    query ClearGetCrisis($id: String!) {
+  crisis(id: $id) {
+    id
+    severity
+    enrichmentStatus
+    title
+    summary
+    scenarios
+    needs
+    populationAffected
+    populationInArea
+    createdAt
+    updatedAt
+    generalLocation {
+      id
+      name
+      level
+    }
+    events {
+      id
+    }
+  }
+}
+    `) as unknown as TypedDocumentString<ClearGetCrisisQuery, ClearGetCrisisQueryVariables>;
 export const ClearGetAlertDocument = new TypedDocumentString(`
     query ClearGetAlert($id: String!) {
   alert(id: $id) {
@@ -316,6 +500,33 @@ export const ClearGetAlertDocument = new TypedDocumentString(`
   }
 }
     `) as unknown as TypedDocumentString<ClearGetAlertQuery, ClearGetAlertQueryVariables>;
+export const ClearGetDatapointsDocument = new TypedDocumentString(`
+    query ClearGetDatapoints($locationId: String, $windowKind: String!, $windowStart: DateTime!, $windowEnd: DateTime!, $schemaVersion: String, $asOf: DateTime) {
+  aggregatedDatapoint(
+    locationId: $locationId
+    windowKind: $windowKind
+    windowStart: $windowStart
+    windowEnd: $windowEnd
+    schemaVersion: $schemaVersion
+    asOf: $asOf
+  ) {
+    id
+    locationId
+    windowKind
+    windowStart
+    windowEnd
+    schemaVersion
+    computedAt
+    onDemand
+    reportCount
+    dataQualityScore
+    contributingReportIds
+    oldestSourceAt
+    newestSourceAt
+    data
+  }
+}
+    `) as unknown as TypedDocumentString<ClearGetDatapointsQuery, ClearGetDatapointsQueryVariables>;
 export const ClearGetEventDocument = new TypedDocumentString(`
     query ClearGetEvent($id: String!) {
   event(id: $id) {
@@ -474,6 +685,38 @@ export const ClearListEventsDocument = new TypedDocumentString(`
   }
 }
     `) as unknown as TypedDocumentString<ClearListEventsQuery, ClearListEventsQueryVariables>;
+export const ClearListFiguresDocument = new TypedDocumentString(`
+    query ClearListFigures($reportId: String, $locationIds: [String!], $eventTypes: [String!], $needSectors: [String!], $kinds: [String!], $timeRangeStart: DateTime, $timeRangeEnd: DateTime, $first: Int, $after: String) {
+  reportFigures(
+    reportId: $reportId
+    locationIds: $locationIds
+    eventTypes: $eventTypes
+    needSectors: $needSectors
+    kinds: $kinds
+    timeRangeStart: $timeRangeStart
+    timeRangeEnd: $timeRangeEnd
+    first: $first
+    after: $after
+  ) {
+    id
+    reportId
+    reportTitle
+    sourceUrl
+    pageNumber
+    kind
+    isFullPage
+    s3Key
+    locationIds
+    eventTypes
+    needSectors
+    timeRangeStart
+    timeRangeEnd
+    title
+    description
+    transcription
+  }
+}
+    `) as unknown as TypedDocumentString<ClearListFiguresQuery, ClearListFiguresQueryVariables>;
 export const ClearListSignalsDocument = new TypedDocumentString(`
     query ClearListSignals($input: SignalsPageInput) {
   signalsPage(input: $input) {
@@ -508,6 +751,71 @@ export const ClearListSignalsDocument = new TypedDocumentString(`
   }
 }
     `) as unknown as TypedDocumentString<ClearListSignalsQuery, ClearListSignalsQueryVariables>;
+export const ClearSearchKnowledgeBaseDocument = new TypedDocumentString(`
+    query ClearSearchKnowledgeBase($query: String!, $filters: KnowledgebaseFilters, $limit: Int) {
+  searchKnowledgebase(query: $query, filters: $filters, limit: $limit) {
+    id
+    reportId
+    reportTitle
+    sourceUrl
+    publishedAt
+    pageStart
+    pageEnd
+    score
+    locationIds
+    eventTypes
+    needSectors
+    figureKind
+    chunkText
+  }
+}
+    `) as unknown as TypedDocumentString<ClearSearchKnowledgeBaseQuery, ClearSearchKnowledgeBaseQueryVariables>;
+export const ClearGetSituationAnalysisDocument = new TypedDocumentString(`
+    query ClearGetSituationAnalysis($countryLocationId: String!, $year: Int, $windowKind: String, $windowStart: DateTime, $schemaVersion: String) {
+  situationAnalysis(
+    countryLocationId: $countryLocationId
+    year: $year
+    windowKind: $windowKind
+    windowStart: $windowStart
+    schemaVersion: $schemaVersion
+  ) {
+    ...SituationAnalysisFields
+  }
+}
+    fragment SituationAnalysisFields on SituationAnalysis {
+  id
+  countryLocationId
+  windowKind
+  windowStart
+  windowEnd
+  schemaVersion
+  generatedAt
+  generatedByModel
+  sourceReportIds
+  data
+}`) as unknown as TypedDocumentString<ClearGetSituationAnalysisQuery, ClearGetSituationAnalysisQueryVariables>;
+export const ClearSituationAnalysisHistoryDocument = new TypedDocumentString(`
+    query ClearSituationAnalysisHistory($countryLocationId: String!, $limit: Int, $schemaVersion: String) {
+  situationAnalysesForCountry(
+    countryLocationId: $countryLocationId
+    limit: $limit
+    schemaVersion: $schemaVersion
+  ) {
+    ...SituationAnalysisFields
+  }
+}
+    fragment SituationAnalysisFields on SituationAnalysis {
+  id
+  countryLocationId
+  windowKind
+  windowStart
+  windowEnd
+  schemaVersion
+  generatedAt
+  generatedByModel
+  sourceReportIds
+  data
+}`) as unknown as TypedDocumentString<ClearSituationAnalysisHistoryQuery, ClearSituationAnalysisHistoryQueryVariables>;
 export const ClearWhoamiDocument = new TypedDocumentString(`
     query ClearWhoami {
   me {
