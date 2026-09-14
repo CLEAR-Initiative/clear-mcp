@@ -93,9 +93,10 @@ Failures are returned as values, not thrown:
 | Code | Meaning | Retry? |
 |---|---|---|
 | `UNAUTHENTICATED` | key unknown, revoked or inactive | No — the key must be fixed |
-| `FORBIDDEN` | the caller lacks scope for this row | No — ask for access |
-| `BAD_USER_INPUT` | malformed argument or invalid document | No — fix the call |
-| `UPSTREAM_*` / network | clear-api unreachable or erroring | Once, then report |
+| `FORBIDDEN` | the caller lacks scope for this row. `subCode: "PENDING_APPROVAL"` means the account is awaiting approval, not that the data is missing | No — ask for access |
+| `BAD_USER_INPUT` | malformed argument, or a document the schema snapshot rejects | No — fix the call |
+| `UPSTREAM_UNAVAILABLE` | clear-api unreachable, or the 10s request deadline elapsed | Once, then report |
+| `UPSTREAM_ERROR` | clear-api answered with an error carrying no code of its own | Once, then report |
 
 Report the `code` and `message` to the user. Do not paper over a failure with a
 guess, and do not retry an auth or permission failure.

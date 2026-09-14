@@ -9,7 +9,7 @@ all accept:
 |---|---|---|
 | `teamId` | string | From `clear_whoami`. Omit for the global feed. |
 | `locationId` | string | From `clear_find_location`. Includes descendants. |
-| `severityMin` / `severityMax` | int 1–5 | Inclusive bounds. Rows with null severity are excluded by either bound. |
+| `severityMin` / `severityMax` | int 1–5 | Inclusive bounds, applied upstream by clear-api. Severity is nullable, so say "unrated" rather than assuming where unrated rows fall. |
 | `from` / `to` | ISO-8601 | Inclusive window on that tier's **primary** timestamp. |
 
 Primary timestamps differ by tier:
