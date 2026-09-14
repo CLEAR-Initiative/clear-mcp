@@ -29,11 +29,17 @@ about eight tool calls; say so if a scope will cost materially more.
 
 ### Header and staleness
 
-Stale means either older than its cadence (country analyses regenerate weekly) or **a new alert has
-landed in the scope since it was generated**. Both are checkable now:
+Stale means either older than its cadence (the PRD sets weekly for the country default — read
+`generatedAt` rather than assuming it) or **a new alert has been issued in the scope since it was
+generated**. Both are checkable now:
 
 1. `clear_get_situation_analysis` → `generatedAt`
-2. `clear_list_alerts({ locationId, from: generatedAt, limit: 1 })` → `totalCount > 0` means stale
+2. `clear_list_alerts({ locationId, orderBy: "CREATED_DESC", limit: 1 })` → stale when
+   `items[0].createdAt > generatedAt`
+
+Do **not** use `from: generatedAt` for this: `from`/`to` on the alert and event tools filter on the
+underlying event's *first-signal* time, not on when the alert was issued, so an alert raised
+yesterday on an event that began months ago would be missed.
 
 Always show the as-of time. A cached figure presented as current is the failure mode this section
 exists to prevent.
@@ -88,8 +94,11 @@ location sits to the scope; treat that ranking as provisional and say so.
 
 ### Recent alerts
 
-Below country level only: `clear_list_alerts({ locationId, from: <now − 14 days> })`. A country
-scope does not carry this list — the volume drowns the rest of the page.
+Below country level only: `clear_list_alerts({ locationId, orderBy: "CREATED_DESC" })`, keeping
+rows whose `createdAt` is within the last 14 days and paging while the last row still qualifies.
+"Issued in the last 14 days" is `createdAt`; a `from` filter would select alerts on events that
+*began* in the window instead. A country scope does not carry this list — the volume drowns the
+rest of the page.
 
 ### Figures and maps
 

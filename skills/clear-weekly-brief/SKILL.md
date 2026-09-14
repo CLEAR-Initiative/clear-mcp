@@ -46,8 +46,11 @@ For each area, in this order:
 ```
 clear_count({ entity: "event", groupBy: "type", locationId, from, to })       # the GLIDE mix — do not assume "security" codes
 clear_list_events({ locationId, from, to, severityMin: 3, limit: 10 })          # dated, cited incidents
-clear_list_alerts({ locationId, from, to })                                      # what was actually issued
+clear_list_alerts({ locationId, orderBy: "CREATED_DESC" })                         # issued this week: keep createdAt within [from, to]
 ```
+
+`from`/`to` on these tools filter on the event's *first-signal* time, so the events listed are the
+ones that began this week; "issued this week" for alerts is `createdAt`, filtered client-side.
 
 List incidents **dated, one line each**, with the event `id` and its severity and GLIDE types.
 Where the user wants the underlying text, `clear_get_event` gives it untruncated with its
