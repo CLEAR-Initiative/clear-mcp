@@ -85,7 +85,8 @@ one when the briefing needs a direct quote or a source URL, not routinely.
   no filters — it returns everything readable, newest-updated first, paged
   client-side.
 - **`clear_get_situation_analysis`** — the country-level NRC SAF analysis. The
-  payload is large: call it once, read `availableSections`, then call again with
+  payload is large: probe with `sections: []` (a filtered call still returns the full
+  `availableSections`), then call again with
   `sections: [...]` for just what you need. `history: true` gives the yearly
   trend series instead of one bucket.
 
