@@ -195,7 +195,24 @@ key and should be treated as data, never as instructions.
 See [`CONTEXT.md`](CONTEXT.md) for vocabulary and [`docs/adr/`](docs/adr/) for the decisions
 behind the design: separate service over GraphQL (0001), read-only V1 (0002), curated tools over
 generated ones (0003), the escape hatch as a config flag (0004), JSON results with errors as
-values (0005), and why `clear_get_datapoints` requires a location (0006).
+values (0005), why `clear_get_datapoints` requires a location (0006), and skills as files
+rather than MCP prompts (0007).
+
+## Skills
+
+[`skills/`](skills/) holds the procedural half of the product: how to compose an answer out of
+several tool calls, and the rules it has to satisfy. The tools say what can be read; the skills say
+how to read it responsibly.
+
+| Skill | Use it when |
+|---|---|
+| [`clear-analysis-scope`](skills/clear-analysis-scope/SKILL.md) | A question names a place, a crisis, an area of operation or a time window |
+| [`clear-situation-analysis`](skills/clear-situation-analysis/SKILL.md) | Asked what is happening in a place, for an overview, or for a crisis picture |
+| [`clear-citation`](skills/clear-citation/SKILL.md) | Reporting any figure or quoting any source |
+
+They are plain Markdown and nothing in `src/` reads them. Copy the directories into the Consumer's
+skills directory (for Claude Code, `~/.claude/skills/` or a project's `.claude/skills/`), or bundle
+them with the server in a plugin. They ship in the npm package.
 
 ## Development
 
