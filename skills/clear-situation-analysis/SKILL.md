@@ -5,8 +5,9 @@ description: Compose a situation analysis for a scope from CLEAR — summary, ke
 
 # Situation analysis for a scope
 
-Read `clear-analysis-scope` first (it fixes the geography and period) and apply `clear-citation`
-throughout (nothing here may state an unsourced figure).
+Read `clear-analysis-scope` first (it fixes the geography and period). `clear-briefing` and
+`clear-evidence` explain the tools themselves; this skill says which of them feeds which section,
+in what order, and when to stop. Every figure follows `clear-evidence/references/citation.md`.
 
 ## Section order
 
@@ -18,7 +19,7 @@ Always the same order, whatever the scope:
 4. **Needs** — sectors by severity, with the sources behind each
 5. **Event picture** — volume and trend, then the heaviest individual events
 6. **Recent alerts** — below country level only, last 14 days
-7. **Sources** — the provenance block from `clear-citation`
+7. **Sources** — the provenance block
 
 Render the header, summary and key figures eagerly. Everything below is **on request**: name the
 sections you have not fetched rather than spending calls nobody asked for. A first pass should cost
@@ -39,29 +40,26 @@ exists to prevent.
 
 ### Summary
 
-**Country scope** — `clear_get_situation_analysis({ countryLocationId, sections: [...] })`. Payloads
-are large, so filter. To discover what exists, request one section: the result still reports the
-full `availableSections` list, so a single cheap call tells you what else is there. `history: true`
-returns the yearly series instead, newest first — that is how you read earlier versions and show a
-trend.
+**Country scope** — `clear_get_situation_analysis({ countryLocationId, sections: [...] })`. Probe
+with `sections: []` first: a filtered call still returns the full `availableSections`, so one
+cheap call tells you what exists. `history: true` returns the yearly series, newest first — that
+is how you read earlier versions and show a trend.
 
 **Below country level there is no stored analysis** — `countryLocationId` is a level-0 id. Compose
 the summary yourself from key figures, knowledge-base hits and the event picture, and say plainly
-that it was composed on the fly rather than read from a stored analysis. (This gap is what
-AnalysisScope is meant to close; today it is a real limit, not a formatting choice.)
+that it was composed on the fly rather than read from a stored analysis. (This gap is what an
+analysis scope in clear-api is meant to close; today it is a real limit, not a formatting choice.)
 
 **Crisis scope** — `clear_get_crisis` gives an LLM title, summary, scenarios and NRC SAF needs.
-Machine-generated: cite it as derived, and follow its events for anything factual.
+Machine-generated: cite it as derived, and follow its `eventIds` for anything factual.
 
 ### Key figures
 
 `clear_get_datapoints({ locationId, windowKind, windowStart, windowEnd })` — `locationId` is
-required by design (ADR-0006): the nullable upstream argument silently mixes countries, so there is
-no "just give me the numbers" call. Defaults to the current calendar year, `yearly`.
+required by design (ADR-0006). Defaults to the current calendar year, `yearly`.
 
-`data` is a flat map keyed by field label; numeric fields carry `value`, `unit`, `data_quality` and
-`contributing_report_ids`. **Do not add figures across districts** — they come from overlapping
-reports and are not additive. Report them per location, or read the parent location instead.
+**Do not add figures across districts** — they come from overlapping reports and are not
+additive. Report them per location, or read the parent location instead.
 
 ### Needs
 
@@ -78,14 +76,11 @@ figures tools.
 Volume and shape first, individual rows second:
 
 ```
-clear_count({ entity: "events", groupBy: "week",     locationId, from, to })   # trend
-clear_count({ entity: "events", groupBy: "type",     locationId, from, to })   # GLIDE mix
-clear_count({ entity: "events", groupBy: "severity", locationId, from, to })   # weight
-clear_list_events({ locationId, from, to, severityMin: 4, limit: 10 })          # the heavy ones
+clear_count({ entity: "event", groupBy: "week",     locationId, from, to })   # trend
+clear_count({ entity: "event", groupBy: "type",     locationId, from, to })   # GLIDE mix
+clear_count({ entity: "event", groupBy: "severity", locationId, from, to })   # weight
+clear_list_events({ locationId, from, to, severityMin: 4, limit: 10 })         # the heavy ones
 ```
-
-`groupBy: "type"` is also how you discover the GLIDE codes in use before filtering by
-`eventTypes`. `clear_get_event` adds the full text, alert ids and up to 50 signal references.
 
 Sub-threshold signals — the ones that never became events — are visible through
 `clear_list_signals` over the same scope. Rank them by severity, then recency, then how close their
@@ -106,5 +101,5 @@ the report and page and use the transcription for the content.
 
 Nothing here persists. There is no scope record, no analysis version, no regeneration, no edit, no
 map rendering, no PDF — clear-mcp is read-only (ADR-0002) and those belong to clear-api. Produce the
-analysis as text with its provenance block; if the user wants it frozen, saved or published, say
-where that actually happens.
+analysis as text with its provenance block; if the user wants it frozen, saved or published, use
+`clear-sitrep` and say where the file actually lives.
