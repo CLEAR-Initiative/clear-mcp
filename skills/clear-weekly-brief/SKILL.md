@@ -66,8 +66,10 @@ happened, and the line should say so.
 ### Trend
 
 `clear_count({ entity: "event", groupBy: "severity", locationId, from, to })` for this week and
-for the comparison week, per area. Report the totals side by side and the change in words
-("12 events, up from 7"). Never compute a percentage on single-digit counts.
+for the comparison week, per area. Counts are by the event's first-signal time — onsets, not
+activity — so an event that began last week and is still moving counts last week; say so when it
+matters. Report the totals side by side and the change in words ("12 events, up from 7"). Never
+compute a percentage on single-digit counts.
 
 ### Analysis
 
