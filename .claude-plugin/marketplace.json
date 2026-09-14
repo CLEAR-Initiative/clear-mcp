@@ -1,0 +1,23 @@
+{
+  "name": "clear",
+  "owner": {
+    "name": "CLEAR Initiative",
+    "url": "https://github.com/CLEAR-Initiative"
+  },
+  "description": "CLEAR's agent skills — how to read humanitarian signals, events, alerts, crises and the knowledge base through the clear-mcp MCP server.",
+  "plugins": [
+    {
+      "name": "clear-mcp",
+      "source": "./",
+      "description": "Situation briefings, evidence and citation discipline, and the developer GraphQL escape hatch for CLEAR data.",
+      "category": "data",
+      "keywords": [
+        "clear",
+        "humanitarian",
+        "mcp",
+        "nrc",
+        "situation-analysis"
+      ]
+    }
+  ]
+}

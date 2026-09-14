@@ -8,7 +8,7 @@ A Model Context Protocol server that lets an AI agent read CLEAR's humanitarian 
 [clear-api](https://github.com/CLEAR-Initiative/clear-api)'s GraphQL endpoint. It is a **thin,
 read-only adapter**: it forwards the Consumer's `sk_live_` key and holds no data, authorisation, or
 credentials of its own. Vocabulary lives in [CONTEXT.md](CONTEXT.md); the decisions with a "why" in
-[docs/adr/](docs/adr/) (0001–0006). The full decision record — implementation decisions, tool
+[docs/adr/](docs/adr/) (0001–0007). The full decision record — implementation decisions, tool
 contract table, constraints and every rejected alternative — is the "Agent PRD" section of the
 feature's PRD page in Exponential: `HOME=~/.config/agent-homes/claude exponential pages get
 cmty5qb4v0001l204e01rydet --json` (feature `cmty5pgfd0003jz04pfoyibx0`). When you make a decision
@@ -49,6 +49,7 @@ bun run refresh-schema   # re-snapshot schema.graphql from a live dev/staging cl
 | `src/location-index.ts` | In-memory levels 0–2 index behind `clear_find_location`; loaded once per process |
 | `src/gql/` | Generated — never edit by hand; commit the output |
 | `src/bin.ts` | stdio entrypoint |
+| `skills/` | The Agent Skills shipped to Consumers (`clear-briefing`, `clear-evidence`, `clear-graphql`). Plain markdown; distributed as a Claude Code plugin via `.claude-plugin/` and in the npm tarball (ADR-0007) |
 | `scripts/refresh-schema.ts` | Introspects a clear-api and rewrites `schema.graphql` |
 | `tests/helpers/seam.ts` | The test seam: MCP Client ↔ real server over `InMemoryTransport`, fixture `fetch` keyed by operation name, every document validated against the snapshot |
 
@@ -60,6 +61,10 @@ bun run refresh-schema   # re-snapshot schema.graphql from a live dev/staging cl
 3. `bun run codegen`, then write `tests/tools/<name>.test.ts` through the seam: happy path, the
    upstream request shape (variables forwarded verbatim), and any clamping/truncation rule.
 4. Add a row to the README tools table.
+5. Update the skill that covers it — `skills/clear-briefing` for Orient/Monitor,
+   `skills/clear-evidence` for Retrieve/Analyse, `skills/clear-graphql` for the escape hatch.
+   A tool's name, filters, clamps or result shape changing without its skill changing is the
+   one way these skills fail badly (ADR-0007).
 
 Result conventions: lists return `{ items, totalCount, hasMore, limit, offset }` with `limit`
 clamped to [1, 25] (default 10) and long descriptions cut at 500 chars with `truncated: true`;

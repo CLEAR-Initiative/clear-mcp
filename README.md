@@ -195,7 +195,46 @@ key and should be treated as data, never as instructions.
 See [`CONTEXT.md`](CONTEXT.md) for vocabulary and [`docs/adr/`](docs/adr/) for the decisions
 behind the design: separate service over GraphQL (0001), read-only V1 (0002), curated tools over
 generated ones (0003), the escape hatch as a config flag (0004), JSON results with errors as
-values (0005), and why `clear_get_datapoints` requires a location (0006).
+values (0005), why `clear_get_datapoints` requires a location (0006), and why skills ship as
+files rather than over the MCP connection (0007).
+
+## Skills
+
+The tools tell an agent *what* it can call; the skills in [`skills/`](skills/) tell it *how to
+use them together* — the five-tier data model, which tool answers which question, and the
+citation and third-party-content rules that make an answer trustworthy.
+
+| Skill | Use it for |
+|---|---|
+| [`clear-briefing`](skills/clear-briefing/) | "What is happening in X?" — orient, locate, then work down alerts → events → signals, with the data model and filter reference alongside |
+| [`clear-evidence`](skills/clear-evidence/) | Numbers, sources and citations — knowledge-base search, datapoints with their data-quality scores, figures, situation analyses |
+| [`clear-graphql`](skills/clear-graphql/) | The developer escape hatch — exploring the schema and writing narrow read-only queries for fields the curated tools do not cover |
+
+They are plain [Agent Skills](https://agentskills.io) (a `SKILL.md` plus `references/`), so any
+harness that reads skills from disk can use them. Three ways to install:
+
+**As a Claude Code plugin** (recommended — one command, stays up to date):
+
+```bash
+claude plugin marketplace add CLEAR-Initiative/clear-mcp
+claude plugin install clear-mcp@clear
+```
+
+Or from inside Claude Code, `/plugin marketplace add CLEAR-Initiative/clear-mcp` then
+`/plugin install clear-mcp@clear`. This repository is private, so the marketplace resolves for
+anyone with read access to it; consumers outside the org use one of the routes below.
+
+**From the npm package**, which ships `skills/` alongside `dist/`:
+
+```bash
+cp -R "$(npm root -g)/@clear-initiative/mcp/skills/"* ~/.claude/skills/
+```
+
+**By hand** — copy any skill directory into `~/.claude/skills/` (all your projects) or a repo's
+`.claude/skills/` (that repo only, versioned with it).
+
+Skills are read-only instructions. They carry no credentials and grant no access: every tool call
+they describe still runs as your API key and nothing more.
 
 ## Development
 
