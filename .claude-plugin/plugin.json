@@ -1,0 +1,25 @@
+{
+  "name": "clear-mcp",
+  "version": "0.1.0",
+  "description": "Agent skills for reading CLEAR's humanitarian data through the clear-mcp MCP server — situation briefings, evidence and citation, and the developer GraphQL escape hatch.",
+  "author": {
+    "name": "CLEAR Initiative",
+    "url": "https://github.com/CLEAR-Initiative"
+  },
+  "homepage": "https://github.com/CLEAR-Initiative/clear-mcp",
+  "repository": "https://github.com/CLEAR-Initiative/clear-mcp",
+  "license": "AGPL-3.0-or-later",
+  "keywords": [
+    "clear",
+    "humanitarian",
+    "mcp",
+    "nrc",
+    "early-warning",
+    "situation-analysis"
+  ],
+  "skills": [
+    "./skills/clear-briefing",
+    "./skills/clear-evidence",
+    "./skills/clear-graphql"
+  ]
+}
