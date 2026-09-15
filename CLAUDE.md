@@ -49,7 +49,7 @@ bun run refresh-schema   # re-snapshot schema.graphql from a live dev/staging cl
 | `src/location-index.ts` | In-memory levels 0–2 index behind `clear_find_location`; loaded once per process |
 | `src/gql/` | Generated — never edit by hand; commit the output |
 | `src/bin.ts` | stdio entrypoint |
-| `skills/` | The Agent Skills shipped to Consumers (`clear-briefing`, `clear-evidence`, `clear-graphql`). Plain markdown; distributed as a Claude Code plugin via `.claude-plugin/` and in the npm tarball (ADR-0007) |
+| `skills/` | The Agent Skills shipped to Consumers — `clear-briefing`, `clear-evidence`, `clear-graphql` teach the tools; `clear-analysis-scope`, `clear-situation-analysis`, `clear-sitrep`, `clear-weekly-brief` are analysis workflows over them. Plain markdown; distributed as a Claude Code plugin via `.claude-plugin/` and in the npm tarball (ADR-0007) |
 | `scripts/refresh-schema.ts` | Introspects a clear-api and rewrites `schema.graphql` |
 | `tests/helpers/seam.ts` | The test seam: MCP Client ↔ real server over `InMemoryTransport`, fixture `fetch` keyed by operation name, every document validated against the snapshot |
 
@@ -64,7 +64,8 @@ bun run refresh-schema   # re-snapshot schema.graphql from a live dev/staging cl
 5. Update the skill that covers it — `skills/clear-briefing` for Orient/Monitor,
    `skills/clear-evidence` for Retrieve/Analyse, `skills/clear-graphql` for the escape hatch.
    A tool's name, filters, clamps or result shape changing without its skill changing is the
-   one way these skills fail badly (ADR-0007).
+   one way these skills fail badly (ADR-0007). The workflow skills call tools by name too —
+   `grep -rn <tool> skills/` before you rename anything.
 
 Result conventions: lists return `{ items, totalCount, hasMore, limit, offset }` with `limit`
 clamped to [1, 25] (default 10) and long descriptions cut at 500 chars with `truncated: true`;

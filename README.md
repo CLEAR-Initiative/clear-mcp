@@ -209,8 +209,13 @@ citation and third-party-content rules that make an answer trustworthy.
 | [`clear-briefing`](skills/clear-briefing/) | "What is happening in X?" — orient, locate, then work down alerts → events → signals, with the data model and filter reference alongside |
 | [`clear-evidence`](skills/clear-evidence/) | Numbers, sources and citations — knowledge-base search, datapoints with their data-quality scores, figures, situation analyses |
 | [`clear-graphql`](skills/clear-graphql/) | The developer escape hatch — exploring the schema and writing narrow read-only queries for fields the curated tools do not cover |
+| [`clear-analysis-scope`](skills/clear-analysis-scope/) | Fixing what an answer is about — locations and/or a crisis plus a period — before spending calls; multi-district scopes and the subtree traps |
+| [`clear-situation-analysis`](skills/clear-situation-analysis/) | A situation analysis for a scope in a fixed section order — summary, key figures, needs by severity, event picture, recent alerts — with a staleness check |
+| [`clear-sitrep`](skills/clear-sitrep/) | Freezing an analysis into a dated, immutable Situation Report with a provenance record |
+| [`clear-weekly-brief`](skills/clear-weekly-brief/) | The recurring weekly operational brief per area of operation — incidents, trend, analysis, draft advisories, media |
 
-They are plain [Agent Skills](https://agentskills.io) (a `SKILL.md` plus `references/`), so any
+The first three teach the tools; the last four are workflows over them, drawn from the Situation
+analysis PRD. They are plain [Agent Skills](https://agentskills.io) (a `SKILL.md` plus `references/`), so any
 harness that reads skills from disk can use them. Three ways to install:
 
 **As a Claude Code plugin** (recommended — one command, stays up to date):

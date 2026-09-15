@@ -1,7 +1,7 @@
 {
   "name": "clear-mcp",
   "version": "0.1.0",
-  "description": "Agent skills for reading CLEAR's humanitarian data through the clear-mcp MCP server — situation briefings, evidence and citation, and the developer GraphQL escape hatch.",
+  "description": "Agent skills for reading CLEAR's humanitarian data through the clear-mcp MCP server — the tools (briefing, evidence, GraphQL escape hatch) and the analysis workflows over them (scope, situation analysis, sitrep, weekly brief).",
   "author": {
     "name": "CLEAR Initiative",
     "url": "https://github.com/CLEAR-Initiative"
@@ -20,6 +20,10 @@
   "skills": [
     "./skills/clear-briefing",
     "./skills/clear-evidence",
-    "./skills/clear-graphql"
+    "./skills/clear-graphql",
+    "./skills/clear-analysis-scope",
+    "./skills/clear-situation-analysis",
+    "./skills/clear-sitrep",
+    "./skills/clear-weekly-brief"
   ]
 }

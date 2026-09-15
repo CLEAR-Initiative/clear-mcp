@@ -42,6 +42,38 @@ newest 2026-08-30).
 When tiers disagree, say so plainly and show both. Do not average them, and do
 not silently prefer the one that fits the narrative.
 
+## When sources disagree
+
+Show the **range with each source attached**, and do not resolve it silently. If one report
+says 53,000 displaced and another 65,000, that is the finding.
+
+Default order of trust when one figure has to lead:
+
+1. NRC staff contribution
+2. Formal assessment (MSNA, cluster assessment)
+3. Partner or cluster figure
+4. ReliefWeb report
+5. Media
+
+The order decides which figure leads, never which figure is dropped. CLEAR has no `Estimate`
+entity yet, so apply it by comparing the contributing reports behind a datapoint field, or the
+hits behind a knowledge-base claim.
+
+## Provenance block
+
+Close any analysis, brief or report with:
+
+```
+Scope:        North Darfur (level 1, SD05) · 2026-01-01 → present
+As of:        2026-09-14T09:12Z
+Sources:      report <id> (title, pp. 3–4), report <id> (title, p. 11), events <id>, <id>
+Generated:    situation analysis generated 2026-09-08 by <model> — machine-generated, unverified
+Tools:        clear_find_location, clear_get_datapoints, clear_search_knowledge_base, clear_count
+```
+
+Mark every machine-generated section **unverified** until a person confirms it, and keep that
+mark visible when the text is reused downstream.
+
 ## Honest gaps
 
 - `item: null` from datapoints or a situation analysis means **no snapshot for

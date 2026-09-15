@@ -108,10 +108,11 @@ report>)` to see whether a chart or map makes the point better than the prose.
 `clear_get_situation_analysis(countryLocationId: <level-0 id>)` returns the
 standing NRC SAF analysis — context, displacement, needs by sector, scenarios.
 
-The payload is large. The efficient pattern is two calls:
+The payload is large. The efficient pattern is two calls — a filtered call still reports the
+full `availableSections`, so the probe costs almost nothing:
 
 ```
-clear_get_situation_analysis(countryLocationId: C)                # read availableSections
+clear_get_situation_analysis(countryLocationId: C, sections: [])   # read availableSections
 clear_get_situation_analysis(countryLocationId: C,
                              sections: ["displacement", "scenarios"])
 ```

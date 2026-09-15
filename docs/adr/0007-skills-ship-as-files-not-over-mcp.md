@@ -24,6 +24,12 @@ client consumes it — one prerelease framework and one server have interoperate
 and Claude Code, the V1 Consumer, does not implement it. It would be correct
 code that nothing calls.
 
+MCP prompts were the other in-protocol route, and the SDK supports them today. Rejected for
+the same content: a prompt is user-invoked, one turn, by name — the wrong shape for rules that
+must hold whenever a figure is reported, which the user never explicitly starts — and prompts
+list eagerly, so every Consumer would carry all of them in context, the cost ADR-0003 exists to
+avoid. They stay available later as slash-command entry points wrapping the same files.
+
 Skills are markdown, so distribution is a packaging problem rather than a
 protocol one. The same `skills/` directory reaches consumers three ways: a
 Claude Code plugin (`.claude-plugin/marketplace.json` + `plugin.json`, installed
