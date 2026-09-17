@@ -9,8 +9,7 @@ client at an absolute path to `src/bin.ts`. That is a developer's install, and
 the V1 Consumer list already includes people who are not developers. Every
 release now reaches Consumers three ways, each built from the same `dist/`:
 
-1. **npm** — `@clear-initiative/mcp`, published from a `v*` tag with
-   provenance. `npx -y @clear-initiative/mcp` works in any MCP client that can
+1. **npm** — `@clear-initiative/mcp`, published from a `v*` tag. `npx -y @clear-initiative/mcp` works in any MCP client that can
    launch a command, on Node 20+.
 2. **The Claude Code plugin** — `.claude-plugin/plugin.json` declares the server
    inline in `mcpServers`, running `npx -y @clear-initiative/mcp@<version>`, and
@@ -59,5 +58,9 @@ Alternatives considered:
   holds no credentials or data — it is the adapter only (ADR-0001) — but its
   compiled source and `skills/` are readable by anyone. The `.mcpb` Release
   asset is only as visible as the repository.
+- No npm provenance. The registry rejects a provenance bundle from a private
+  source repository (`E422 … repository visibility: "private"`, found on the
+  first release). Turn `publishConfig.provenance` back on if the repository
+  becomes public.
 - Human setup, once: the `@clear-initiative` npm org and the `NPM_TOKEN` repo
   secret.

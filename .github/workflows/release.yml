@@ -1,6 +1,6 @@
 # Publishes a release from a `v*` tag (docs/agents/git-flow.md, ADR-0008):
 #
-#   1. npm      — @clear-initiative/mcp, with provenance. What `npx -y
+#   1. npm      — @clear-initiative/mcp. What `npx -y
 #                 @clear-initiative/mcp` and the Claude Code plugin run.
 #   2. GitHub   — a Release with clear-mcp-<version>.mcpb attached, the Claude
 #                 Desktop extension.
@@ -19,9 +19,10 @@ on:
   push:
     tags: ["v*"]
 
+# No npm provenance: the registry only accepts it from public source
+# repositories, and this one is private (ADR-0008).
 permissions:
   contents: write # create the GitHub Release
-  id-token: write # npm provenance
 
 concurrency:
   group: release-${{ github.ref }}

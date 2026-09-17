@@ -56,7 +56,7 @@ bun run set-version X.Y.Z                      # package.json, .claude-plugin/pl
 git tag vX.Y.Z && git push origin vX.Y.Z
 ```
 
-The tag runs `.github/workflows/release.yml`: the gates above, `npm publish` (provenance; needs the
+The tag runs `.github/workflows/release.yml`: the gates above, `npm publish` (needs the
 `NPM_TOKEN` secret), and a GitHub Release with `clear-mcp-X.Y.Z.mcpb` attached. A `-suffix` version
 publishes to npm's `next` tag as a prerelease. Tag promptly — until the tag publishes, the plugin on
 `main` pins an npm version that does not exist. Re-running a tag is safe. Never hand-edit a version:
