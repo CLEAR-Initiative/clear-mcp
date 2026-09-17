@@ -43,10 +43,13 @@ channels, no dependency on a draft.
   clamps or result shape must change its skill in the same pull request — the
   failure mode of skills is drifting into confident wrongness, which is worse
   than having none.
-- The plugin ships skills only, not an `.mcp.json`. A server config at the
-  plugin root is also a project config for this repo, so installing the plugin
-  would offer contributors a clear-mcp server pointed at their own checkout.
-  Consumers configure the server from `README.md` as before.
+- The plugin does not use a root `.mcp.json`: a server config at the plugin
+  root is also a project config for this repo, so it would offer contributors a
+  clear-mcp server pointed at their own checkout. *Amended by ADR-0008:* the
+  plugin now declares the server inline in `plugin.json` (`mcpServers`, running
+  the pinned npm package, with `userConfig` for the URL and key), which has no
+  project-config side effect — so one plugin install gives both server and
+  skills.
 - `plugin.json` carries its own `version`, and its `skills` array names each
   directory explicitly — a new skill directory is invisible until it is listed
   there.

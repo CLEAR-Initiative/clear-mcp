@@ -1,7 +1,7 @@
 {
   "name": "clear-mcp",
   "version": "0.1.0",
-  "description": "Agent skills for reading CLEAR's humanitarian data through the clear-mcp MCP server — the tools (briefing, evidence, GraphQL escape hatch) and the analysis workflows over them (scope, situation analysis, sitrep, weekly brief).",
+  "description": "CLEAR's humanitarian data for Claude Code: the clear-mcp server (read-only tools over signals, events, alerts, crises, situation analyses and the knowledge base) and the agent skills that teach them — briefing, evidence, the GraphQL escape hatch, and the scope / situation-analysis / sitrep / weekly-brief workflows.",
   "author": {
     "name": "CLEAR Initiative",
     "url": "https://github.com/CLEAR-Initiative"
@@ -17,6 +17,41 @@
     "early-warning",
     "situation-analysis"
   ],
+  "userConfig": {
+    "api_url": {
+      "type": "string",
+      "title": "CLEAR API URL",
+      "description": "Base URL of clear-api, e.g. https://api.clear.example.org",
+      "required": true
+    },
+    "api_key": {
+      "type": "string",
+      "title": "CLEAR API key",
+      "description": "Your sk_live_… key, minted at <CLEAR API URL>/portal. Stored in the system keychain.",
+      "sensitive": true,
+      "required": true
+    },
+    "locale": {
+      "type": "string",
+      "title": "Locale",
+      "description": "Language clear-api answers in: en, ar, fr or es",
+      "default": "en"
+    }
+  },
+  "mcpServers": {
+    "clear": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@clear-initiative/mcp@0.1.0"
+      ],
+      "env": {
+        "CLEAR_API_URL": "${user_config.api_url}",
+        "CLEAR_API_KEY": "${user_config.api_key}",
+        "CLEAR_MCP_LOCALE": "${user_config.locale}"
+      }
+    }
+  },
   "skills": [
     "./skills/clear-briefing",
     "./skills/clear-evidence",

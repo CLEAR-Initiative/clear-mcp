@@ -2,7 +2,8 @@
 
 Procedural knowledge for agents using clear-mcp. The tools say what can be read; these say how to
 read it well. [ADR-0007](../docs/adr/0007-skills-ship-as-files-not-over-mcp.md) records why they
-are files (plugin, npm tarball, or a copy) rather than something served over the MCP connection;
+are files (the Claude Code plugin — which also installs the server — the npm tarball, or a copy) rather
+than something served over the MCP connection;
 the top-level [README](../README.md#skills) has the install commands.
 
 Three skills teach the tools; four are workflows over them, drawn from the Situation analysis PRD.

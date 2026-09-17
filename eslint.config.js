@@ -2,7 +2,7 @@ import eslint from "@eslint/js";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist/", "node_modules/", "coverage/", "src/gql/"] },
+  { ignores: ["dist/", "build/", "node_modules/", "coverage/", "src/gql/"] },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   {

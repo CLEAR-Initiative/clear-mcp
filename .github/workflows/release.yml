@@ -1,0 +1,97 @@
+# Publishes a release from a `v*` tag (docs/agents/git-flow.md, ADR-0008):
+#
+#   1. npm      — @clear-initiative/mcp, with provenance. What `npx -y
+#                 @clear-initiative/mcp` and the Claude Code plugin run.
+#   2. GitHub   — a Release with clear-mcp-<version>.mcpb attached, the Claude
+#                 Desktop extension.
+#
+# Cut one with `bun run set-version X.Y.Z`, merge that PR, then tag the merge
+# commit on main: `git tag vX.Y.Z && git push origin vX.Y.Z`. Tag promptly —
+# the plugin on main pins the new npm version, which does not exist until this
+# workflow has published it.
+#
+# Secret: NPM_TOKEN — an npm automation (or granular publish) token for the
+# @clear-initiative org. Re-running a tag is safe: an already-published npm
+# version is skipped, and the Release is created only if missing.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # create the GitHub Release
+  id-token: write # npm provenance
+
+concurrency:
+  group: release-${{ github.ref }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - run: bun install --frozen-lockfile
+
+      - name: Tag matches every channel's version
+        id: version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          for f in package.json .claude-plugin/plugin.json mcpb/manifest.json; do
+            v=$(node -p "require('./$f').version")
+            if [ "$v" != "$tag" ]; then
+              echo "::error file=$f::version $v does not match tag $GITHUB_REF_NAME — run bun run set-version $tag"
+              exit 1
+            fi
+          done
+          echo "version=$tag" >> "$GITHUB_OUTPUT"
+          case "$tag" in *-*) echo "prerelease=true" >> "$GITHUB_OUTPUT";; *) echo "prerelease=false" >> "$GITHUB_OUTPUT";; esac
+
+      # The same gates as CI: a tag is not a way around them.
+      - name: Generated GraphQL types are in sync
+        run: bun run codegen && git diff --exit-code src/gql
+      - run: bun run lint
+      - run: bun run typecheck
+      - run: bun run build
+      - run: bun run test
+
+      - name: Build the Claude Desktop extension
+        run: bun scripts/build-mcpb.ts
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+          PRERELEASE: ${{ steps.version.outputs.prerelease }}
+        run: |
+          if npm view "@clear-initiative/mcp@$VERSION" version >/dev/null 2>&1; then
+            echo "@clear-initiative/mcp@$VERSION is already on npm — skipping publish"
+            exit 0
+          fi
+          if [ "$PRERELEASE" = "true" ]; then
+            npm publish --tag next
+          else
+            npm publish
+          fi
+
+      - name: Create the GitHub Release with the .mcpb attached
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          PRERELEASE: ${{ steps.version.outputs.prerelease }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "build/clear-mcp-$VERSION.mcpb" --clobber
+          else
+            flags=""
+            [ "$PRERELEASE" = "true" ] && flags="--prerelease"
+            gh release create "$GITHUB_REF_NAME" "build/clear-mcp-$VERSION.mcpb" --verify-tag --generate-notes $flags
+          fi

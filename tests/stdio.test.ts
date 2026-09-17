@@ -58,6 +58,9 @@ describe("stdio entrypoint", () => {
         CLEAR_API_URL: "http://127.0.0.1:1",
         CLEAR_API_KEY: "sk_live_x",
         CLEAR_MCP_LOG_LEVEL: "error",
+        // Plugin and Desktop-extension installers pass an untouched optional
+        // field as "" — it must fall back to the default, not fail validation.
+        CLEAR_MCP_LOCALE: "",
       },
       stderr: "pipe",
     });

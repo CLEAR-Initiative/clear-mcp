@@ -46,6 +46,13 @@ comments — and is therefore attacker-writable. Every tool returns it under a
 distinct `content` key and declares it as data, never as instructions.
 _Avoid_: payload, body, raw text
 
+**Install channel**:
+One of the three ways a release reaches a Consumer — the npm package
+(`npx -y @clear-initiative/mcp`), the Claude Code plugin (server and skills),
+or the Claude Desktop extension (`.mcpb`). All three carry the same version
+and the same server.
+_Avoid_: distribution, flavour, edition
+
 ## Tool groups
 
 **Orient**:
