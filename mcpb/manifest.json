@@ -2,7 +2,7 @@
   "manifest_version": "0.2",
   "name": "clear-mcp",
   "display_name": "CLEAR",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Read CLEAR's humanitarian data — signals, events, alerts, crises, situation analyses and the knowledge base — from Claude.",
   "long_description": "A read-only connector to CLEAR (Crisis Learning, Early-warning, Anticipation, and Response). It forwards your CLEAR API key to clear-api and holds no data or credentials of its own, so every answer is bounded by exactly your CLEAR permissions. Start by asking \"Who am I in CLEAR?\", then \"What's happened in North Darfur this month?\".",
   "author": {

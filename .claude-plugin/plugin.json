@@ -1,6 +1,6 @@
 {
   "name": "clear-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "CLEAR's humanitarian data for Claude Code: the clear-mcp server (read-only tools over signals, events, alerts, crises, situation analyses and the knowledge base) and the agent skills that teach them — briefing, evidence, the GraphQL escape hatch, and the scope / situation-analysis / sitrep / weekly-brief workflows.",
   "author": {
     "name": "CLEAR Initiative",
@@ -43,7 +43,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "@clear-initiative/mcp@0.1.0"
+        "@clear-initiative/mcp@0.1.1"
       ],
       "env": {
         "CLEAR_API_URL": "${user_config.api_url}",

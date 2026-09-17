@@ -325,7 +325,7 @@ git tag v0.2.0 && git push origin v0.2.0
 ```
 
 The tag runs [`.github/workflows/release.yml`](.github/workflows/release.yml): the CI gates, then
-`npm publish` with provenance, then a GitHub Release with `clear-mcp-0.2.0.mcpb` attached. A tag
+`npm publish`, then a GitHub Release with `clear-mcp-0.2.0.mcpb` attached. A tag
 with a prerelease suffix (`v0.2.0-rc.1`) publishes under npm's `next` dist-tag and marks the Release
 as a prerelease. Push the tag right after merging — until it publishes, the plugin on `main` pins an
 npm version that does not exist yet. `bun run build:mcpb` builds the extension locally into
