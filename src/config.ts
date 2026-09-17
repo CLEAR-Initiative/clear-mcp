@@ -43,7 +43,8 @@ export class ConfigError extends Error {
 /**
  * Parse the five `CLEAR_*` environment variables into a `Config`. Missing
  * required variables are reported together, by name, so a Consumer's MCP
- * config can be fixed in one pass. Empty strings count as missing.
+ * config can be fixed in one pass. Empty strings count as missing (required)
+ * or unset (optional).
  */
 export function parseConfig(env: Record<string, string | undefined>): Config {
   const missing = REQUIRED.filter((name) => !env[name] || env[name]!.trim() === "");
@@ -54,7 +55,11 @@ export function parseConfig(env: Record<string, string | undefined>): Config {
     );
   }
 
-  const parsed = envSchema.safeParse(env);
+  // Installers that template env from a settings form (the Claude Code plugin's
+  // userConfig, a Claude Desktop extension's user_config) pass an untouched
+  // optional field as "" rather than leaving it unset — treat that as unset.
+  const present = Object.fromEntries(Object.entries(env).filter(([, v]) => v === undefined || v.trim() !== ""));
+  const parsed = envSchema.safeParse(present);
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`);
     const variables = parsed.error.issues.map((i) => String(i.path[0]));
