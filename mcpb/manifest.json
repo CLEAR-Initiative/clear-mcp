@@ -1,0 +1,135 @@
+{
+  "manifest_version": "0.2",
+  "name": "clear-mcp",
+  "display_name": "CLEAR",
+  "version": "0.1.0",
+  "description": "Read CLEAR's humanitarian data — signals, events, alerts, crises, situation analyses and the knowledge base — from Claude.",
+  "long_description": "A read-only connector to CLEAR (Crisis Learning, Early-warning, Anticipation, and Response). It forwards your CLEAR API key to clear-api and holds no data or credentials of its own, so every answer is bounded by exactly your CLEAR permissions. Start by asking \"Who am I in CLEAR?\", then \"What's happened in North Darfur this month?\".",
+  "author": {
+    "name": "CLEAR Initiative",
+    "url": "https://github.com/CLEAR-Initiative"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CLEAR-Initiative/clear-mcp"
+  },
+  "homepage": "https://github.com/CLEAR-Initiative/clear-mcp",
+  "support": "https://github.com/CLEAR-Initiative/clear-mcp#readme",
+  "license": "AGPL-3.0-or-later",
+  "keywords": [
+    "clear",
+    "humanitarian",
+    "early-warning",
+    "situation-analysis",
+    "nrc"
+  ],
+  "server": {
+    "type": "node",
+    "entry_point": "dist/bin.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/dist/bin.js"
+      ],
+      "env": {
+        "CLEAR_API_URL": "${user_config.api_url}",
+        "CLEAR_API_KEY": "${user_config.api_key}",
+        "CLEAR_MCP_LOCALE": "${user_config.locale}"
+      }
+    }
+  },
+  "user_config": {
+    "api_url": {
+      "type": "string",
+      "title": "CLEAR API URL",
+      "description": "Base URL of clear-api, e.g. https://api.clear.example.org",
+      "required": true
+    },
+    "api_key": {
+      "type": "string",
+      "title": "CLEAR API key",
+      "description": "Your sk_live_… key, minted at <CLEAR API URL>/portal. Stored in your system keychain.",
+      "sensitive": true,
+      "required": true
+    },
+    "locale": {
+      "type": "string",
+      "title": "Locale",
+      "description": "Language clear-api answers in: en, ar, fr or es",
+      "default": "en",
+      "required": false
+    }
+  },
+  "tools": [
+    {
+      "name": "clear_whoami",
+      "description": "Your identity, teams and their scope locations"
+    },
+    {
+      "name": "clear_find_location",
+      "description": "Turn a place name into CLEAR location ids"
+    },
+    {
+      "name": "clear_search_knowledge_base",
+      "description": "Search ingested reports for citable passages"
+    },
+    {
+      "name": "clear_list_alerts",
+      "description": "List published alerts"
+    },
+    {
+      "name": "clear_list_events",
+      "description": "List events with severity and disaster types"
+    },
+    {
+      "name": "clear_list_signals",
+      "description": "List raw signals"
+    },
+    {
+      "name": "clear_count",
+      "description": "Count signals, events or alerts, grouped by type, severity or time"
+    },
+    {
+      "name": "clear_get_alert",
+      "description": "One alert in full"
+    },
+    {
+      "name": "clear_get_event",
+      "description": "One event in full"
+    },
+    {
+      "name": "clear_get_signal",
+      "description": "One signal in full"
+    },
+    {
+      "name": "clear_list_crises",
+      "description": "List curated crises"
+    },
+    {
+      "name": "clear_get_crisis",
+      "description": "One crisis with scenarios and needs"
+    },
+    {
+      "name": "clear_get_situation_analysis",
+      "description": "A country's situation analysis"
+    },
+    {
+      "name": "clear_get_datapoints",
+      "description": "Aggregated figures for a location and window"
+    },
+    {
+      "name": "clear_list_figures",
+      "description": "Charts, maps and tables extracted from reports"
+    }
+  ],
+  "compatibility": {
+    "platforms": [
+      "darwin",
+      "win32",
+      "linux"
+    ],
+    "runtimes": {
+      "node": ">=20.0.0"
+    }
+  }
+}

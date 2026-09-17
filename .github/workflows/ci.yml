@@ -38,3 +38,14 @@ jobs:
           set -e
           echo "$out"
           test "$code" = "1" && echo "$out" | grep -q CLEAR_API_KEY
+
+      # The Claude Desktop extension: stage dist/ with production dependencies,
+      # smoke-run it under Node, pack it. Uploaded so a PR's .mcpb can be tried
+      # in Claude Desktop before it is released.
+      - name: Build the Claude Desktop extension
+        run: bun scripts/build-mcpb.ts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: clear-mcp-mcpb
+          path: build/*.mcpb
+          retention-days: 14
