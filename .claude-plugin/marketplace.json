@@ -4,12 +4,12 @@
     "name": "CLEAR Initiative",
     "url": "https://github.com/CLEAR-Initiative"
   },
-  "description": "CLEAR's agent skills — how to read humanitarian signals, events, alerts, crises and the knowledge base through the clear-mcp MCP server.",
+  "description": "CLEAR for Claude Code — the clear-mcp server and the agent skills for reading humanitarian signals, events, alerts, crises and the knowledge base.",
   "plugins": [
     {
       "name": "clear-mcp",
       "source": "./",
-      "description": "Situation briefings, evidence and citation discipline, and the developer GraphQL escape hatch for CLEAR data.",
+      "description": "The clear-mcp server plus situation briefings, evidence and citation discipline, analysis workflows, and the developer GraphQL escape hatch for CLEAR data.",
       "category": "data",
       "keywords": [
         "clear",
