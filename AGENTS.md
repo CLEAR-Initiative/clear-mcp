@@ -35,6 +35,7 @@ bun run lint
 bun run typecheck
 bun run build
 bun run test
+bun scripts/build-mcpb.ts   # Desktop extension: stage, smoke-run under Node, pack (CI uploads it)
 ```
 
 Nightly (`.github/workflows/nightly.yml`) runs the live suite (`bun run test:live`, gated
@@ -44,6 +45,22 @@ it is the only alarm for schema drift and for a changed auth contract.
 `schema.graphql` must equal the SDL of the target clear-api. Refresh it with
 `CLEAR_API_URL=… CLEAR_API_KEY=… bun run refresh-schema` against dev/staging (introspection is off
 in production) and commit the diff together with any tool changes it forces.
+
+## Releasing
+
+One version covers npm, the Claude Code plugin and the Claude Desktop extension (ADR-0008).
+
+```bash
+bun run set-version X.Y.Z                      # package.json, .claude-plugin/plugin.json (+ npm pin), mcpb/manifest.json
+# PR → merge, then tag the merge commit on main straight away:
+git tag vX.Y.Z && git push origin vX.Y.Z
+```
+
+The tag runs `.github/workflows/release.yml`: the gates above, `npm publish` (provenance; needs the
+`NPM_TOKEN` secret), and a GitHub Release with `clear-mcp-X.Y.Z.mcpb` attached. A `-suffix` version
+publishes to npm's `next` tag as a prerelease. Tag promptly — until the tag publishes, the plugin on
+`main` pins an npm version that does not exist. Re-running a tag is safe. Never hand-edit a version:
+`tests/packaging.test.ts` and the workflow both refuse a mismatch.
 
 ## How tools are tested
 
