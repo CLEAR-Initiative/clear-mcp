@@ -34,6 +34,7 @@ describe("library entry", () => {
     expect(Object.keys(library).sort()).toEqual([
       "ERROR_CODES",
       "SUPPORTED_LOCALES",
+      "THIRD_PARTY_CONTENT_RULE",
       "createLocationIndex",
       "createUpstream",
       "curatedTools",

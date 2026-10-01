@@ -4,6 +4,7 @@
  * row says "13"; the PRD's own contract table names these 15.
  */
 import { afterEach, describe, expect, it } from "vitest";
+import { createLibrarySeam } from "./helpers/library-seam.js";
 import { connect, type Seam } from "./helpers/seam.js";
 
 export const CURATED_TOOLS = [
@@ -45,5 +46,14 @@ describe("tools/list", () => {
     seam = await connect({ env: { CLEAR_MCP_RAW_GRAPHQL: "1" } });
     const names = (await seam.client.listTools()).tools.map((t) => t.name);
     expect(names).toEqual([...CURATED_TOOLS, "clear_graphql", "clear_schema_type"]);
+  });
+
+  it("offers the same tools and descriptions through the Tool library, never the escape hatch", async () => {
+    seam = await connect();
+    const listed = (await seam.client.listTools()).tools.map((t) => ({ name: t.name, description: t.description }));
+    // Even with the flag on, the library's curated set is the curated set (ADR-0004, ADR-0009).
+    const { tools } = createLibrarySeam({ config: { rawGraphql: true } });
+    expect(tools.map((t) => ({ name: t.name, description: t.description }))).toEqual(listed);
+    expect(tools.map((t) => t.name)).toEqual(CURATED_TOOLS);
   });
 });

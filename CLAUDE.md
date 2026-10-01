@@ -73,7 +73,8 @@ Release: `bun run set-version X.Y.Z` in a PR → merge → `git tag vX.Y.Z && gi
    The selection set **is** the projection — select only what the output needs.
 2. Add it to `curatedTools` in `src/tools/index.ts` (keep the `clear_` prefix).
 3. `bun run codegen`, then write `tests/tools/<name>.test.ts` through the seam: happy path, the
-   upstream request shape (variables forwarded verbatim), and any clamping/truncation rule.
+   upstream request shape (variables forwarded verbatim), and any clamping/truncation rule. Add
+   a case to `tests/library/parity.test.ts` (it fails until every curated tool has one).
 4. Add a row to the README tools table.
 5. Add it to the `tools` list in `mcpb/manifest.json` (`tests/packaging.test.ts` holds it equal to
    the served list).
