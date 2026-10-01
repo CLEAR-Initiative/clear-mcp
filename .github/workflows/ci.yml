@@ -39,6 +39,20 @@ jobs:
           echo "$out"
           test "$code" = "1" && echo "$out" | grep -q CLEAR_API_KEY
 
+      # The Tool library entry (ADR-0009), resolved through package.json `exports`
+      # by the package's own name — as a Consumer imports it — under Node 20.
+      - name: Tool library imports on Node
+        run: |
+          node --input-type=module -e "
+          const lib = await import('@clear-initiative/mcp/library');
+          for (const name of ['curatedTools', 'runTool', 'createUpstream', 'createLocationIndex']) {
+            if (typeof lib[name] !== 'function') throw new Error(name + ' is not exported');
+          }
+          const tools = lib.curatedTools({ locationIndex: lib.createLocationIndex() });
+          if (tools.length !== 15) throw new Error('expected 15 curated tools, got ' + tools.length);
+          console.log('library ok:', tools.length, 'tools');
+          "
+
       # The Claude Desktop extension: stage dist/ with production dependencies,
       # smoke-run it under Node, pack it. Uploaded so a PR's .mcpb can be tried
       # in Claude Desktop before it is released.

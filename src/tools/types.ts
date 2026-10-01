@@ -1,6 +1,6 @@
 import type { z } from "zod";
 import type { Config } from "../config.js";
-import type { ToolOutcome } from "../errors.js";
+import { ERROR_CODES, fail, type ToolOutcome } from "../errors.js";
 import type { Logger } from "../logger.js";
 import type { Upstream } from "../upstream.js";
 
@@ -10,6 +10,11 @@ export interface ToolContext {
   upstream: Upstream;
   log: Logger;
   toolName: string;
+  /**
+   * Aborts the tool's upstream requests — e.g. a cancelled Agent turn —
+   * alongside the upstream's own timeout. A tool returns a CANCELLED value.
+   */
+  signal?: AbortSignal;
 }
 
 /**
@@ -30,4 +35,25 @@ export function defineTool<I extends z.ZodObject, O extends z.ZodObject>(
   def: ToolDefinition<I, O>,
 ): ToolDefinition<I, O> {
   return def;
+}
+
+/**
+ * The one way to call a tool, shared by the MCP server and Tool library
+ * Consumers: parse `args` with the tool's input schema — invalid input is a
+ * BAD_USER_INPUT value naming each bad field, never a throw — then `run` it
+ * with `toolName` set to the tool's own name.
+ */
+export async function runTool<I extends z.ZodObject, O extends z.ZodObject>(
+  tool: ToolDefinition<I, O>,
+  args: unknown,
+  ctx: Omit<ToolContext, "toolName">,
+): Promise<ToolOutcome<z.output<O>>> {
+  const parsed = tool.input.safeParse(args ?? {});
+  if (!parsed.success) {
+    return fail({
+      code: ERROR_CODES.BAD_USER_INPUT,
+      message: parsed.error.issues.map((i) => `${i.path.join(".") || "input"}: ${i.message}`).join("; "),
+    });
+  }
+  return tool.run(parsed.data, { ...ctx, toolName: tool.name });
 }

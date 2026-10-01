@@ -130,6 +130,7 @@ export const getSituationAnalysisTool = defineTool({
         document: SA_HISTORY_DOCUMENT,
         variables: compact({ countryLocationId: input.countryLocationId, limit, schemaVersion: input.schemaVersion }),
         toolName: ctx.toolName,
+        signal: ctx.signal,
       });
       if (!res.ok) return fail(res.error);
       return ok({ item: null, items: res.data.situationAnalysesForCountry.map((sa) => project(sa, input.sections)) });
@@ -145,6 +146,7 @@ export const getSituationAnalysisTool = defineTool({
         schemaVersion: input.schemaVersion,
       }),
       toolName: ctx.toolName,
+      signal: ctx.signal,
     });
     if (!res.ok) return fail(res.error);
     const sa = res.data.situationAnalysis;

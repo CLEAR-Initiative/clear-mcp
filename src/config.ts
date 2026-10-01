@@ -7,11 +7,21 @@ export type Locale = (typeof SUPPORTED_LOCALES)[number];
 export const LOG_LEVELS = ["fatal", "error", "warn", "info", "debug", "trace", "silent"] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];
 
+/**
+ * How every upstream request authenticates as the Caller — the only
+ * credential clear-mcp ever holds, forwarded unchanged (ADR-0009). An MCP
+ * Consumer's `sk_live_…` key, or, for a Tool library Consumer, request
+ * headers forwarded from the signed-in user (their session `cookie`).
+ */
+export type Credential =
+  | { kind: "apiKey"; key: string }
+  | { kind: "headers"; headers: Record<string, string> };
+
 export interface Config {
   /** Base URL of the target clear-api (the `/graphql` path is appended). */
   apiUrl: string;
-  /** The Consumer's `sk_live_…` key — the only credential the server holds. */
-  apiKey: string;
+  /** The Caller's credential. `parseConfig` (env) always yields an `apiKey`. */
+  credential: Credential;
   /** Sent as `x-force-locale` on every upstream request. */
   locale: Locale;
   /** `CLEAR_MCP_RAW_GRAPHQL=1` registers the developer-only Escape hatch. */
@@ -69,7 +79,7 @@ export function parseConfig(env: Record<string, string | undefined>): Config {
   const e = parsed.data;
   return {
     apiUrl: normaliseApiUrl(e.CLEAR_API_URL),
-    apiKey: e.CLEAR_API_KEY,
+    credential: { kind: "apiKey", key: e.CLEAR_API_KEY },
     locale: e.CLEAR_MCP_LOCALE,
     // Truthy only for the literal "1" — "true"/"yes" do not enable the hatch.
     rawGraphql: e.CLEAR_MCP_RAW_GRAPHQL === "1",

@@ -1,6 +1,6 @@
 {
   "name": "@clear-initiative/mcp",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Model Context Protocol server exposing CLEAR's humanitarian data (via clear-api) to AI agents",
   "keywords": [
     "mcp",
@@ -20,6 +20,13 @@
   "type": "module",
   "bin": {
     "clear-mcp": "dist/bin.js"
+  },
+  "exports": {
+    "./library": {
+      "types": "./dist/library.d.ts",
+      "default": "./dist/library.js"
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist",
@@ -50,6 +57,7 @@
     "prepublishOnly": "bun run build"
   },
   "dependencies": {
+    "@graphql-typed-document-node/core": "^3.2.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "graphql": "^16.13.0",
     "pino": "^10.3.1",

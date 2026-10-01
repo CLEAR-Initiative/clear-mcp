@@ -246,8 +246,70 @@ See [`CONTEXT.md`](CONTEXT.md) for vocabulary and [`docs/adr/`](docs/adr/) for t
 behind the design: separate service over GraphQL (0001), read-only V1 (0002), curated tools over
 generated ones (0003), the escape hatch as a config flag (0004), JSON results with errors as
 values (0005), why `clear_get_datapoints` requires a location (0006), and why skills ship as
-files rather than over the MCP connection (0007), and why it installs three ways — npm, the
-Claude Code plugin and a Claude Desktop extension — from one version (0008).
+files rather than over the MCP connection (0007), why it installs three ways — npm, the
+Claude Code plugin and a Claude Desktop extension — from one version (0008), and why the same
+tools are also published as a Tool library (0009).
+
+## Tool library
+
+The npm package also exports the curated tools for an Agent running in your own Node process —
+no MCP protocol, no subprocess — as `@clear-initiative/mcp/library` (ADR-0009). Same tools, same
+descriptions, same results as the server; the escape hatch is not included. The upstream
+credential is pluggable: an API key, or headers forwarded from your signed-in user (their session
+`cookie`), so every call runs with exactly that user's clear-api permissions.
+
+```ts
+import {
+  createLocationIndex,
+  createUpstream,
+  curatedTools,
+  runTool,
+  silentLogger,
+  THIRD_PARTY_CONTENT_RULE, // put this in your Agent's system prompt
+  type Config,
+} from "@clear-initiative/mcp/library";
+
+// Once per process. The location index behind clear_find_location holds data only — tiers per
+// locale, never an upstream or a credential — so one instance is shared by every user.
+const tools = curatedTools({ locationIndex: createLocationIndex() });
+
+// Per request: the signed-in user's session and locale.
+const config: Config = {
+  apiUrl: "https://api.clear.example.org",
+  credential: { kind: "headers", headers: { cookie } },
+  locale: "fr",
+  rawGraphql: false,
+  logLevel: "silent",
+};
+const upstream = createUpstream({ config });
+
+const tool = tools.find((t) => t.name === "clear_list_events")!;
+const outcome = await runTool(tool, { limit: 5 }, { config, upstream, log: silentLogger() });
+if (!outcome.ok) console.warn(outcome.error.code); // e.g. BAD_USER_INPUT, FORBIDDEN — a value, never thrown
+```
+
+Each tool is `{ name, description, input, output, run }`, and `run` resolves to
+`{ ok: true, value }` or `{ ok: false, error: { code, subCode?, message } }`. `input` and `output`
+are **zod v4** object schemas from this package's own `zod` dependency, whatever zod version your
+app uses. Treat them as [Standard Schema](https://standardschema.dev) values — validate with them,
+convert them to JSON Schema, or pass them to a framework such as Mastra as they are — but never
+compose them with your own zod (`z.union`, `.extend`, …): two zod copies do not mix.
+Call tools through `runTool(tool, args, ctx)` — the same path the MCP server takes: it validates
+`args` against `input` (invalid input is a `BAD_USER_INPUT` value) and then runs the tool.
+Set `rawGraphql: false`: the escape hatch is never part of the library, and `clear_whoami`
+reports this flag as `escapeHatchEnabled`. Locale is per upstream, never a tool argument.
+
+The location index loads each locale's tiers once, through whichever request first needs them,
+and shares them across users — this relies on clear-api's `locations(level)` returning the same
+tiers to every Caller. Known limitation: the cache never expires, so locations added to clear-api
+appear only after a restart.
+
+Pass `signal` in the context (`runTool(tool, args, { …, signal })`) to abort a tool's upstream
+requests when, say, the user stops an Agent turn; the tool returns a `CANCELLED` value. This needs
+Node 20.3+ (`AbortSignal.any`).
+
+The library reads its own `package.json` at load, so it runs on Node only; in Next.js, list
+`@clear-initiative/mcp` in `serverExternalPackages`.
 
 ## Skills
 

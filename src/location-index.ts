@@ -1,14 +1,16 @@
+import type { Locale } from "./config.js";
 import type { ToolError } from "./errors.js";
 import { graphql } from "./gql/index.js";
-import type { Logger } from "./logger.js";
+import { silentLogger, type Logger } from "./logger.js";
 import type { Upstream } from "./upstream.js";
 
 /**
  * Backs `clear_find_location`. clear-api's `locations(level)` is unguarded
  * and returns whole tiers, so the index loads levels 0–2 once per process
- * (one request, three aliased fields) and answers name lookups locally.
- * Level ≥ 3 (L4 landmarks, `landmark-geocoded` points) is deliberately not
- * indexed. Never selects `geometry`, `children`, `parent` or `metadata`.
+ * and locale (one request, three aliased fields) and answers name lookups
+ * locally. Level ≥ 3 (L4 landmarks, `landmark-geocoded` points) is
+ * deliberately not indexed. Never selects `geometry`, `children`, `parent`
+ * or `metadata`.
  */
 export const LOCATIONS_DOCUMENT = graphql(/* GraphQL */ `
   query ClearLocationIndex {
@@ -55,18 +57,33 @@ export interface LocationMatch {
 }
 
 export interface FindOptions {
+  /** Which locale's tiers to search — clear-api localises `Location.name`. */
+  locale: Locale;
   query: string;
   level?: number;
   withinLocationId?: string;
 }
 
+/** One load: the calling tool's upstream and locale, used for that request only. */
+export interface LoadRequest {
+  toolName: string;
+  upstream: Upstream;
+  locale: Locale;
+}
+
 export interface LocationIndex {
-  /** Load the index if needed; resolves to a ToolError on upstream failure. */
-  ensureLoaded(toolName: string): Promise<ToolError | null>;
-  /** Ranked matches; call `ensureLoaded` first. */
+  /**
+   * Load `locale`'s tiers through `upstream` if they are not cached yet;
+   * resolves to a ToolError on upstream failure. The upstream (and so the
+   * Caller's credential) is used for that one request and never kept. A
+   * load is shared by every concurrent caller, so it takes no AbortSignal:
+   * one Caller's cancellation must not fail another's lookup.
+   */
+  ensureLoaded(req: LoadRequest): Promise<ToolError | null>;
+  /** Ranked matches in `opts.locale`'s tiers; call `ensureLoaded` first. */
   find(opts: FindOptions): LocationMatch[];
-  /** Number of indexed rows, or 0 before loading. */
-  size(): number;
+  /** Number of rows indexed for `locale`, or 0 before loading. */
+  size(locale: Locale): number;
 }
 
 /** Match tiers; higher wins. Ties break on level (shallower first) then name. */
@@ -93,19 +110,31 @@ interface Entry extends IndexedLocation {
   words: string[];
 }
 
-export function createLocationIndex(deps: { upstream: Upstream; log: Logger }): LocationIndex {
-  let entries: Entry[] = [];
-  let byId = new Map<string, Entry>();
-  let loaded = false;
-  let inflight: Promise<ToolError | null> | null = null;
+interface Tiers {
+  entries: Entry[];
+  byId: Map<string, Entry>;
+}
 
-  async function load(toolName: string): Promise<ToolError | null> {
+/**
+ * Data only: the index holds loaded tiers, keyed by locale, and never an
+ * upstream or a credential — each load borrows the calling tool's upstream.
+ * One index is shared by every Caller of a process (the MCP server, or a
+ * Tool library Consumer's module-level instance). That assumes
+ * `locations(level)` is not caller-scoped: clear-api returns the same tiers
+ * to everyone. If it ever scopes them, the index must become per Caller.
+ */
+export function createLocationIndex(deps: { log?: Logger } = {}): LocationIndex {
+  const log = deps.log ?? silentLogger();
+  const tiers = new Map<Locale, Tiers>();
+  const inflight = new Map<Locale, Promise<ToolError | null>>();
+
+  async function load({ toolName, upstream, locale }: LoadRequest): Promise<ToolError | null> {
     const started = Date.now();
-    const res = await deps.upstream.request({ document: LOCATIONS_DOCUMENT, toolName });
+    const res = await upstream.request({ document: LOCATIONS_DOCUMENT, toolName });
     if (!res.ok) return res.error;
 
     const rows = [...res.data.countries, ...res.data.states, ...res.data.districts];
-    const next: Entry[] = rows.map((r) => {
+    const entries: Entry[] = rows.map((r) => {
       const normalised = normaliseName(r.name);
       return {
         id: r.id,
@@ -117,11 +146,10 @@ export function createLocationIndex(deps: { upstream: Upstream; log: Logger }): 
         words: normalised.split(" ").filter(Boolean),
       };
     });
-    entries = next;
-    byId = new Map(next.map((e) => [e.id, e]));
-    loaded = true;
-    deps.log.info(
+    tiers.set(locale, { entries, byId: new Map(entries.map((e) => [e.id, e])) });
+    log.info(
       {
+        locale,
         countries: res.data.countries.length,
         states: res.data.states.length,
         districts: res.data.districts.length,
@@ -132,17 +160,17 @@ export function createLocationIndex(deps: { upstream: Upstream; log: Logger }): 
     return null;
   }
 
-  async function ensureLoaded(toolName: string): Promise<ToolError | null> {
-    if (loaded) return null;
-    if (!inflight) {
-      inflight = load(toolName).finally(() => {
-        inflight = null;
-      });
+  async function ensureLoaded(req: LoadRequest): Promise<ToolError | null> {
+    if (tiers.has(req.locale)) return null;
+    let pending = inflight.get(req.locale);
+    if (!pending) {
+      pending = load(req).finally(() => inflight.delete(req.locale));
+      inflight.set(req.locale, pending);
     }
-    return inflight;
+    return pending;
   }
 
-  function ancestorsOf(entry: Entry): LocationAncestor[] {
+  function ancestorsOf(entry: Entry, byId: Map<string, Entry>): LocationAncestor[] {
     const out: LocationAncestor[] = [];
     for (const id of entry.ancestorIds) {
       const a = byId.get(id);
@@ -160,10 +188,11 @@ export function createLocationIndex(deps: { upstream: Upstream; log: Logger }): 
   }
 
   function find(opts: FindOptions): LocationMatch[] {
+    const loaded = tiers.get(opts.locale);
     const q = normaliseName(opts.query);
-    if (!q) return [];
+    if (!loaded || !q) return [];
     const matches: Array<{ entry: Entry; score: number }> = [];
-    for (const entry of entries) {
+    for (const entry of loaded.entries) {
       if (opts.level !== undefined && entry.level !== opts.level) continue;
       if (
         opts.withinLocationId !== undefined &&
@@ -187,10 +216,10 @@ export function createLocationIndex(deps: { upstream: Upstream; log: Logger }): 
       name: entry.name,
       level: entry.level,
       pCode: entry.pCode,
-      ancestors: ancestorsOf(entry),
+      ancestors: ancestorsOf(entry, loaded.byId),
       score,
     }));
   }
 
-  return { ensureLoaded, find, size: () => entries.length };
+  return { ensureLoaded, find, size: (locale) => tiers.get(locale)?.entries.length ?? 0 };
 }

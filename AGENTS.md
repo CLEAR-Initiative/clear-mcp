@@ -70,6 +70,10 @@ reads as "call tool X with Y → get Z, and the upstream saw W". Do not import `
 `src/upstream.ts` from a test; if something can't be asserted through a tool call, that is a design
 smell to fix in the tool, not in the test.
 
+The Tool library (ADR-0009) has its own seam next to it, `tests/helpers/library-seam.ts`: the
+`src/library.ts` entry exactly as a Consumer imports it, over the same fixture `fetch`. A new tool
+gets a case in `tests/library/parity.test.ts` so it stays identical through both.
+
 ## Landing the Plane (Session Completion)
 
 **When ending a work session**, complete ALL steps below. Work is NOT complete until `git push`

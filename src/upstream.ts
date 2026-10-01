@@ -1,7 +1,7 @@
-import { graphqlEndpoint, type Config } from "./config.js";
+import { graphqlEndpoint, type Config, type Credential } from "./config.js";
 import { ERROR_CODES, type ToolError } from "./errors.js";
 import type { TypedDocumentString } from "./gql/graphql.js";
-import type { Logger } from "./logger.js";
+import { silentLogger, type Logger } from "./logger.js";
 import { USER_AGENT_PREFIX } from "./version.js";
 
 /** Outcome of one upstream request, normalised to a discriminated union. */
@@ -18,6 +18,8 @@ export interface UpstreamRequest<TData, TVariables> {
   variables?: TVariables;
   /** The tool issuing the request, sent in `User-Agent` for clear-api's logs. */
   toolName: string;
+  /** The Consumer's cancellation, combined with the per-request timeout. */
+  signal?: AbortSignal;
 }
 
 export interface Upstream {
@@ -48,21 +50,52 @@ interface GraphQLResponseBody<T> {
 export const DEFAULT_TIMEOUT_MS = 10_000;
 
 /**
- * The single GraphQL client. Every request carries the Consumer's key as
- * `Authorization: Bearer`, the configured locale as `x-force-locale`, and
+ * The only headers a `headers` credential forwards. A Consumer may hand over
+ * its whole incoming request's headers; anything else (`content-length`,
+ * `host`, `origin`, `x-forwarded-*`…) is dropped, since it describes that
+ * request, not the Caller — and some of it makes fetch refuse to send.
+ */
+export const FORWARDED_CREDENTIAL_HEADERS = ["authorization", "cookie"] as const;
+
+/**
+ * The headers that authenticate as the Caller: `authorization: Bearer` for
+ * an API key, or the allowlisted forwarded headers, sent lower-cased and
+ * unchanged — nothing of clear-mcp's own. Names match case-insensitively;
+ * when several casings are given, the exact lower-case one wins, else the
+ * first in insertion order.
+ */
+export function credentialHeaders(credential: Credential): Record<string, string> {
+  if (credential.kind === "apiKey") return { authorization: `Bearer ${credential.key}` };
+  const out: Record<string, string> = {};
+  for (const name of FORWARDED_CREDENTIAL_HEADERS) {
+    const value = Object.hasOwn(credential.headers, name)
+      ? credential.headers[name]
+      : Object.entries(credential.headers).find(([k]) => k.toLowerCase() === name)?.[1];
+    if (value !== undefined) out[name] = value;
+  }
+  return out;
+}
+
+/**
+ * The single GraphQL client. Every request carries the Caller's credential
+ * (see `credentialHeaders`), the configured locale as `x-force-locale`, and
  * `User-Agent: clear-mcp/<version> (<tool>)`. Any failure — transport,
  * non-2xx, GraphQL `errors`, partial data — becomes `{ ok: false, error }`
  * so tools never throw on upstream conditions.
  */
 export function createUpstream(opts: {
   config: Config;
-  fetch: FetchLike;
-  log: Logger;
+  /** Defaults to global fetch. */
+  fetch?: FetchLike;
+  /** Defaults to a silent logger (a Tool library Consumer may bring its own pino). */
+  log?: Logger;
   /** Per-request deadline; defaults to 10 s. Injectable so tests can hit it. */
   timeoutMs?: number;
 }): Upstream {
   const endpoint = graphqlEndpoint(opts.config);
-  const { fetch, log, config } = opts;
+  const { config } = opts;
+  const fetch: FetchLike = opts.fetch ?? ((input, init) => globalThis.fetch(input, init));
+  const log = opts.log ?? silentLogger();
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   async function request<TData, TVariables>(
@@ -70,8 +103,9 @@ export function createUpstream(opts: {
   ): Promise<UpstreamResult<TData>> {
     const query = String(req.document);
     const operationName = req.operationName ?? operationNameOf(query) ?? undefined;
+    const credential = credentialHeaders(config.credential);
     const headers: Record<string, string> = {
-      authorization: `Bearer ${config.apiKey}`,
+      ...credential,
       "x-force-locale": config.locale,
       "content-type": "application/json",
       accept: "application/json",
@@ -86,15 +120,22 @@ export function createUpstream(opts: {
         method: "POST",
         headers,
         body,
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: req.signal ? AbortSignal.any([req.signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs),
       });
     } catch (err) {
+      if (req.signal?.aborted) {
+        log.info({ tool: req.toolName, op: operationName }, "upstream request cancelled");
+        return {
+          ok: false,
+          error: {
+            code: ERROR_CODES.CANCELLED,
+            message: `The request to clear-api at ${endpoint} was cancelled.`,
+            upstreamUrl: endpoint,
+          },
+        };
+      }
       const timedOut = err instanceof Error && err.name === "TimeoutError";
-      const message = timedOut
-        ? `timed out after ${timeoutMs} ms`
-        : err instanceof Error
-          ? err.message
-          : String(err);
+      const message = timedOut ? `timed out after ${timeoutMs} ms` : describeFetchError(err, Object.values(credential));
       log.error({ tool: req.toolName, op: operationName, err: message }, "upstream unreachable");
       return {
         ok: false,
@@ -164,6 +205,20 @@ export function createUpstream(opts: {
   }
 
   return { request, endpoint };
+}
+
+/**
+ * The fetch failure and its `cause` (Node's fetch says only "fetch failed";
+ * the reason — DNS, refused, a bad header — is in the cause), on one line,
+ * with every credential value redacted: a header error can echo the value.
+ */
+function describeFetchError(err: unknown, secrets: string[]): string {
+  const parts = [err instanceof Error ? err.message : String(err)];
+  const cause = err instanceof Error && err.cause instanceof Error ? err.cause.message : undefined;
+  if (cause && cause !== parts[0]) parts.push(cause);
+  let text = parts.join(": ");
+  for (const secret of secrets) if (secret) text = text.split(secret).join("[redacted]");
+  return truncate(text.replace(/[\r\n]+/g, " "), 300);
 }
 
 async function safeText(response: Response): Promise<string> {

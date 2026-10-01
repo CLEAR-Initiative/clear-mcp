@@ -8,9 +8,10 @@ export const FIND_LOCATION_LIMIT = { min: 1, max: 10, default: 5 } as const;
 const ancestor = z.object({ id: z.string(), name: z.string(), level: z.number().int() });
 
 /**
- * The index is created once per server and shared across calls; the tool
- * module receives it through a factory so `tools/index.ts` stays a plain
- * list and the server owns the process-lifetime state.
+ * The index is created once per server (or Tool library Consumer) and shared
+ * across calls; the tool module receives it through a factory so
+ * `tools/index.ts` stays a plain list and the owner keeps the process-lifetime
+ * state. Each call loads through its own upstream, in its own locale.
  */
 export function createFindLocationTool(index: LocationIndex) {
   return defineTool({
@@ -57,7 +58,8 @@ export function createFindLocationTool(index: LocationIndex) {
       limit: z.number().int(),
     }),
     async run(input, ctx) {
-      const loadError = await index.ensureLoaded(ctx.toolName);
+      const { locale } = ctx.config;
+      const loadError = await index.ensureLoaded({ toolName: ctx.toolName, upstream: ctx.upstream, locale });
       if (loadError) return fail(loadError);
 
       const limit = Math.min(
@@ -65,6 +67,7 @@ export function createFindLocationTool(index: LocationIndex) {
         Math.max(FIND_LOCATION_LIMIT.min, input.limit ?? FIND_LOCATION_LIMIT.default),
       );
       const matches = index.find({
+        locale,
         query: input.query,
         level: input.level,
         withinLocationId: input.withinLocationId,

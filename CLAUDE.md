@@ -50,12 +50,13 @@ Release: `bun run set-version X.Y.Z` in a PR → merge → `git tag vX.Y.Z && gi
 | Module | Responsibility |
 |---|---|
 | `src/config.ts` | Parses the five `CLEAR_*` env vars with zod; missing required vars → exit 1, named on stderr |
-| `src/upstream.ts` | The single GraphQL client. Adds `Authorization`, `x-force-locale`, `User-Agent: clear-mcp/<version> (<tool>)`; normalises every failure to `{ ok: false, error: ToolError }` |
+| `src/upstream.ts` | The single GraphQL client. Adds the Caller's credential (`authorization: Bearer` for an API key, or forwarded headers such as the session `cookie`), `x-force-locale`, `User-Agent: clear-mcp/<version> (<tool>)`; normalises every failure to `{ ok: false, error: ToolError }` |
 | `src/server.ts` | `createServer({ config, fetch })` — builds the `McpServer`, registers tools, exposes `selfCheck()` |
 | `src/tools/*` | One module per Curated tool: `{ name, description, input, output, run }` via `defineTool` |
-| `src/location-index.ts` | In-memory levels 0–2 index behind `clear_find_location`; loaded once per process |
+| `src/location-index.ts` | In-memory levels 0–2 index behind `clear_find_location`; loaded once per process and locale through the calling tool's upstream; holds data only, never an upstream or credential |
 | `src/gql/` | Generated — never edit by hand; commit the output |
 | `src/bin.ts` | stdio entrypoint |
+| `src/library.ts` | The Tool library entry (`@clear-initiative/mcp/library`, ADR-0009): the Curated tools, `createUpstream`, `createLocationIndex` for an in-process Agent. Must never import `server.ts` / the MCP SDK |
 | `skills/` | The Agent Skills shipped to Consumers — `clear-briefing`, `clear-evidence`, `clear-graphql` teach the tools; `clear-analysis-scope`, `clear-situation-analysis`, `clear-sitrep`, `clear-weekly-brief` are analysis workflows over them. Plain markdown; distributed as a Claude Code plugin via `.claude-plugin/` and in the npm tarball (ADR-0007) |
 | `scripts/refresh-schema.ts` | Introspects a clear-api and rewrites `schema.graphql` |
 | `.claude-plugin/` | The Claude Code plugin + marketplace: `plugin.json` lists the skills and declares the server (`mcpServers` → pinned `npx @clear-initiative/mcp@<version>`, `userConfig` for URL / key / locale) |
@@ -64,6 +65,7 @@ Release: `bun run set-version X.Y.Z` in a PR → merge → `git tag vX.Y.Z && gi
 | `scripts/set-version.ts` | Writes one version into `package.json`, `plugin.json` (and its npm pin) and `mcpb/manifest.json` |
 | `tests/packaging.test.ts` | Pins the three install channels to one version, the same env vars, and the served tool list |
 | `tests/helpers/seam.ts` | The test seam: MCP Client ↔ real server over `InMemoryTransport`, fixture `fetch` keyed by operation name, every document validated against the snapshot |
+| `tests/helpers/library-seam.ts` | The Tool library's seam: the `src/library.ts` entry over the same fixture `fetch`; `tests/library/parity.test.ts` holds every tool equal through both |
 
 ## Adding a tool
 
@@ -71,7 +73,8 @@ Release: `bun run set-version X.Y.Z` in a PR → merge → `git tag vX.Y.Z && gi
    The selection set **is** the projection — select only what the output needs.
 2. Add it to `curatedTools` in `src/tools/index.ts` (keep the `clear_` prefix).
 3. `bun run codegen`, then write `tests/tools/<name>.test.ts` through the seam: happy path, the
-   upstream request shape (variables forwarded verbatim), and any clamping/truncation rule.
+   upstream request shape (variables forwarded verbatim), and any clamping/truncation rule. Add
+   a case to `tests/library/parity.test.ts` (it fails until every curated tool has one).
 4. Add a row to the README tools table.
 5. Add it to the `tools` list in `mcpb/manifest.json` (`tests/packaging.test.ts` holds it equal to
    the served list).
@@ -94,11 +97,12 @@ chunks, comments) goes only under a `content` key.
 - **Never select** `Location.geometry`, `Location.children`, `Location.metadata`,
   `Event.signals { … }` beyond ids, `User.email`, `UserAlert`, `Notification`, or any org/user
   relation.
-- **Every upstream request** carries `Authorization`, `x-force-locale`, and
+- **Every upstream request** carries the Caller's credential, `x-force-locale`, and
   `User-Agent: clear-mcp/<version> (<tool>)` — only `src/upstream.ts` talks to the network.
 - **At most two upstream requests per curated tool call**; `clear_find_location` amortises its
   load to once per process.
-- **The server holds exactly one credential** (the Consumer's key) and forwards it unchanged.
+- **clear-mcp holds exactly one credential** (`Config.credential`: the Consumer's key, or the
+  Tool library Consumer's forwarded session headers) and forwards it unchanged.
 - **One version, three channels.** Never hand-edit a version: `bun run set-version`. The plugin and the
   `.mcpb` may set only `CLEAR_API_URL`, `CLEAR_API_KEY` (sensitive) and `CLEAR_MCP_LOCALE` — never
   `CLEAR_MCP_RAW_GRAPHQL` (ADR-0004, ADR-0008).

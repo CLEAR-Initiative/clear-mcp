@@ -83,6 +83,7 @@ export const searchKnowledgeBaseTool = defineTool({
       document: SEARCH_KB_DOCUMENT,
       variables: { query: input.query, filters: Object.keys(filters).length ? filters : undefined, limit },
       toolName: ctx.toolName,
+      signal: ctx.signal,
     });
     if (!res.ok) return fail(res.error);
 

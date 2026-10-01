@@ -114,6 +114,7 @@ export const listFiguresTool = defineTool({
         after: input.after,
       }),
       toolName: ctx.toolName,
+      signal: ctx.signal,
     });
     if (!res.ok) return fail(res.error);
 
