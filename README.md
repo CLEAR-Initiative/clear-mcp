@@ -268,15 +268,18 @@ import {
   type Config,
 } from "@clear-initiative/mcp/library";
 
-const base = { apiUrl: "https://api.clear.example.org", rawGraphql: false, logLevel: "silent" } as const;
-
-// Once per process. The location index is cached for the life of the instance and captures its
-// upstream's credential, so build it on one carrying no user's credential (`locations` is public).
-const anonymous = createUpstream({ config: { ...base, locale: "en", credential: { kind: "headers", headers: {} } } });
-const tools = curatedTools({ locationIndex: createLocationIndex({ upstream: anonymous }) });
+// Once per process. The location index behind clear_find_location holds data only — tiers per
+// locale, never an upstream or a credential — so one instance is shared by every user.
+const tools = curatedTools({ locationIndex: createLocationIndex() });
 
 // Per request: the signed-in user's session and locale.
-const config: Config = { ...base, locale: "fr", credential: { kind: "headers", headers: { cookie } } };
+const config: Config = {
+  apiUrl: "https://api.clear.example.org",
+  credential: { kind: "headers", headers: { cookie } },
+  locale: "fr",
+  rawGraphql: false,
+  logLevel: "silent",
+};
 const upstream = createUpstream({ config });
 
 const tool = tools.find((t) => t.name === "clear_list_events")!;
@@ -287,8 +290,11 @@ if (!outcome.ok) console.warn(outcome.error.code); // e.g. FORBIDDEN, UNAUTHENTI
 Each tool is `{ name, description, input, output, run }`: `input` and `output` are zod v4 object
 schemas (they implement Standard Schema, so frameworks such as Mastra take them as they are), and
 `run` resolves to `{ ok: true, value }` or `{ ok: false, error: { code, subCode?, message } }`.
-Locale is per upstream, never a tool argument. The library reads its own `package.json` at load,
-so it runs on Node only; in Next.js, list `@clear-initiative/mcp` in `serverExternalPackages`.
+Locale is per upstream, never a tool argument. The location index loads each locale's tiers
+once, through whichever request first needs them, and shares them across users — this relies on
+clear-api's `locations(level)` returning the same tiers to every Caller. The library reads its
+own `package.json` at load, so it runs on Node only; in Next.js, list `@clear-initiative/mcp` in
+`serverExternalPackages`.
 
 ## Skills
 

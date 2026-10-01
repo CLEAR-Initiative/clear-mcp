@@ -106,35 +106,34 @@ describe("upstream credential", () => {
     });
   });
 
-  it("a shared location index on a credential-free upstream never carries a Caller's cookie", async () => {
+  it("one shared location index serves every Caller and locale without retaining a credential", async () => {
     const fixtures = createFixtureFetch({
-      ClearLocationIndex: { data: { countries: [SUDAN], states: [], districts: [] } },
-      ClearWhoami: { data: { me: ME, myTeams: [] } },
+      ClearLocationIndex: (_vars, req) => ({
+        data: { countries: [req.headers["x-force-locale"] === "ar" ? { ...SUDAN, name: "السودان" } : SUDAN], states: [], districts: [] },
+      }),
     });
     const log = silentLogger();
-    const shared = createUpstream({
-      config: { ...TEST_CONFIG, credential: { kind: "headers", headers: {} } },
-      fetch: fixtures.fetch,
-      log,
-    });
-    const locationIndex = createLocationIndex({ upstream: shared, log });
+    // Module-level, as the CLEAR Agent keeps it: the index takes no upstream at all.
+    const tools = curatedTools({ locationIndex: createLocationIndex({ log }) });
+    const tool = tools.find((t) => t.name === "clear_find_location")!;
 
-    // One upstream per request, as the CLEAR Agent builds it, with the user's cookie.
-    const config = { ...TEST_CONFIG, credential: { kind: "headers" as const, headers: { cookie: COOKIE } } };
-    const upstream = createUpstream({ config, fetch: fixtures.fetch, log });
-    const tools = curatedTools({ locationIndex });
-    const run = (name: string, args: Record<string, unknown>) => {
-      const tool = tools.find((t) => t.name === name)!;
-      return tool.run(tool.input.parse(args), { config, upstream, log, toolName: name });
+    // One upstream per request, as the CLEAR Agent builds it, with that user's cookie and locale.
+    const findAs = (cookie: string, locale: "en" | "ar", query: string) => {
+      const config = { ...TEST_CONFIG, locale, credential: { kind: "headers" as const, headers: { cookie } } };
+      const upstream = createUpstream({ config, fetch: fixtures.fetch, log });
+      return tool.run(tool.input.parse({ query }), { config, upstream, log, toolName: tool.name });
     };
 
-    expect(await run("clear_find_location", { query: "Sudan" })).toMatchObject({ ok: true, value: { totalCount: 1 } });
-    await run("clear_whoami", {});
+    expect(await findAs("user=a", "en", "Sudan")).toMatchObject({ ok: true, value: { items: [{ name: "Sudan" }] } });
+    // A second Caller in the same locale is answered from the cache: no request, so nothing of
+    // theirs is sent, and nothing of the first Caller's was kept to send.
+    expect(await findAs("user=b", "en", "Sudan")).toMatchObject({ ok: true, value: { totalCount: 1 } });
+    // A new locale loads its own tiers through *that* call's upstream.
+    expect(await findAs("user=b", "ar", "السودان")).toMatchObject({ ok: true, value: { items: [{ name: "السودان" }] } });
 
-    const [index, whoami] = fixtures.requests;
-    expect(index!.operationName).toBe("ClearLocationIndex");
-    expect(index!.headers).not.toHaveProperty("cookie");
-    expect(index!.headers).not.toHaveProperty("authorization");
-    expect(whoami!.headers.cookie).toBe(COOKIE);
+    expect(fixtures.requests.map((r) => [r.headers.cookie, r.headers["x-force-locale"]])).toEqual([
+      ["user=a", "en"],
+      ["user=b", "ar"],
+    ]);
   });
 });

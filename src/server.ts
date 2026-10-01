@@ -71,7 +71,7 @@ export function createServer(opts: CreateServerOptions): ClearMcpServer {
     },
   );
 
-  const locationIndex = createLocationIndex({ upstream, log });
+  const locationIndex = createLocationIndex({ log });
   for (const tool of curatedTools({ locationIndex })) {
     registerCuratedTool(server, tool, { config, upstream, log });
   }

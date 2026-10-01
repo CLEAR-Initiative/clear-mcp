@@ -42,7 +42,7 @@ export function createLibrarySeam(opts: {
   const fixtures = createFixtureFetch(opts.fixtures);
   const log = silentLogger();
   const upstream = createUpstream({ config, fetch: fixtures.fetch, log });
-  const tools = curatedTools({ locationIndex: createLocationIndex({ upstream, log }) });
+  const tools = curatedTools({ locationIndex: createLocationIndex({ log }) });
 
   return {
     config,

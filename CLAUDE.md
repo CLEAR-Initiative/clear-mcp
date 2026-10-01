@@ -53,7 +53,7 @@ Release: `bun run set-version X.Y.Z` in a PR → merge → `git tag vX.Y.Z && gi
 | `src/upstream.ts` | The single GraphQL client. Adds the Caller's credential (`authorization: Bearer` for an API key, or forwarded headers such as the session `cookie`), `x-force-locale`, `User-Agent: clear-mcp/<version> (<tool>)`; normalises every failure to `{ ok: false, error: ToolError }` |
 | `src/server.ts` | `createServer({ config, fetch })` — builds the `McpServer`, registers tools, exposes `selfCheck()` |
 | `src/tools/*` | One module per Curated tool: `{ name, description, input, output, run }` via `defineTool` |
-| `src/location-index.ts` | In-memory levels 0–2 index behind `clear_find_location`; loaded once per process |
+| `src/location-index.ts` | In-memory levels 0–2 index behind `clear_find_location`; loaded once per process and locale through the calling tool's upstream; holds data only, never an upstream or credential |
 | `src/gql/` | Generated — never edit by hand; commit the output |
 | `src/bin.ts` | stdio entrypoint |
 | `src/library.ts` | The Tool library entry (`@clear-initiative/mcp/library`, ADR-0009): the Curated tools, `createUpstream`, `createLocationIndex` for an in-process Agent. Must never import `server.ts` / the MCP SDK |

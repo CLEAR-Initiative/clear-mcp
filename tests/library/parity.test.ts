@@ -16,6 +16,8 @@ interface ParityCase {
   name: string;
   tool: string;
   args?: Record<string, unknown>;
+  /** The Consumer's locale (`CLEAR_MCP_LOCALE` / `Config.locale`); default `en`. */
+  locale?: "en" | "ar" | "fr" | "es";
   fixtures: Record<string, Responder | FixtureResponse>;
 }
 
@@ -51,6 +53,14 @@ const INDEX_DATA = {
     { id: "sdn-nd-ef", name: "El Fasher", level: 2, pCode: "SD01001", ancestorIds: ["sdn-nd", "sdn"] },
     { id: "tcd-dar", name: "Darfour Camp", level: 2, pCode: null, ancestorIds: ["tcd-x", "tcd"] },
   ],
+};
+
+/** clear-api localises `Location.name` by `x-force-locale`. */
+const AR_NAMES: Record<string, string> = { sdn: "السودان", "sdn-nd": "شمال دارفور", "sdn-sd": "جنوب دارفور", "sdn-nd-ef": "الفاشر" };
+const localisedIndex: Responder = (_vars, req) => {
+  if (req.headers["x-force-locale"] !== "ar") return { data: INDEX_DATA };
+  const tr = (rows: Array<{ id: string; name: string }>) => rows.map((r) => ({ ...r, name: AR_NAMES[r.id] ?? r.name }));
+  return { data: { countries: tr(INDEX_DATA.countries), states: tr(INDEX_DATA.states), districts: tr(INDEX_DATA.districts) } };
 };
 
 const HIT = {
@@ -279,6 +289,13 @@ const CASES: ParityCase[] = [
     fixtures: { ClearLocationIndex: { data: INDEX_DATA } },
   },
   {
+    name: "localised names in ar",
+    tool: "clear_find_location",
+    args: { query: "دارفور" },
+    locale: "ar",
+    fixtures: { ClearLocationIndex: localisedIndex },
+  },
+  {
     name: "the index cannot load",
     tool: "clear_find_location",
     args: { query: "Darfur" },
@@ -461,10 +478,11 @@ describe("Tool library parity with MCP", () => {
   });
 
   it.each(CASES.map((c) => [`${c.tool}: ${c.name}`, c] as const))("%s", async (_label, c) => {
-    const mcp = await connect({ fixtures: c.fixtures });
+    const locale = c.locale ?? "en";
+    const mcp = await connect({ env: { CLEAR_MCP_LOCALE: locale }, fixtures: c.fixtures });
     try {
       const result = await mcp.callTool(c.tool, c.args);
-      const library = createLibrarySeam({ fixtures: c.fixtures });
+      const library = createLibrarySeam({ config: { locale }, fixtures: c.fixtures });
       const outcome = await library.runTool(c.tool, c.args);
 
       expect(outcome).toEqual(
