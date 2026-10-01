@@ -30,13 +30,15 @@ tested against. Drift between the snapshot and clear-api is a contract break.
 _Avoid_: schema cache, introspection result
 
 **Consumer**:
-The MCP client on whose behalf tools run — in v1 a developer's Claude Code /
-Claude Desktop, later an analyst's Claude.ai.
+The client on whose behalf tools run — either an MCP client (a developer's Claude
+Code / Claude Desktop, later an analyst's Claude.ai) or an Agent that uses the
+**Tool library** in-process (clear-mvp's CLEAR Agent).
 _Avoid_: user (ambiguous with clear-api's User), client (ambiguous with the
 GraphQL client inside clear-mcp)
 
 **Caller**:
-The clear-api identity the Consumer's API key resolves to. Every tool runs with
+The clear-api identity the Consumer's credential resolves to — an API key for MCP
+clients, the signed-in user's session for the CLEAR Agent. Every tool runs with
 exactly the Caller's permissions; clear-mcp adds none of its own.
 _Avoid_: principal, service account
 
@@ -52,6 +54,12 @@ One of the three ways a release reaches a Consumer — the npm package
 or the Claude Desktop extension (`.mcpb`). All three carry the same version
 and the same server.
 _Avoid_: distribution, flavour, edition
+
+**Tool library**:
+The **Curated tools** offered directly to an Agent running in the same process,
+without the MCP protocol in between. Same tools, same descriptions, same results
+as the MCP server — MCP is one way of publishing them, the Tool library another.
+_Avoid_: SDK, client library, "MCP-less mode"
 
 ## Tool groups
 
@@ -75,3 +83,6 @@ The curated tier: crises, situation analyses, aggregated datapoints, figures.
 - Every **Curated tool** and the **Escape hatch** is read-only in v1
 - The **Escape hatch** is enabled per **Consumer** by configuration, never
   by role
+- Every **Curated tool** behaves identically over MCP and through the **Tool library**
+- clear-api alone decides what a **Caller** may see; a **Consumer** may choose which
+  tools it *offers*, but that choice is never the security boundary
