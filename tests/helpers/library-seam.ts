@@ -28,7 +28,7 @@ export interface LibrarySeam {
 /** The library equivalent of `connect()` with TEST_ENV — the same Caller, URL and locale. */
 export const TEST_CONFIG: Config = {
   apiUrl: TEST_ENV.CLEAR_API_URL,
-  apiKey: TEST_ENV.CLEAR_API_KEY,
+  credential: { kind: "apiKey", key: TEST_ENV.CLEAR_API_KEY },
   locale: "en",
   rawGraphql: false,
   logLevel: "silent",

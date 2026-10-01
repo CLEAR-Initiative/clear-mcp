@@ -43,7 +43,7 @@ const scopeLocation = z.object({
 export const whoamiTool = defineTool({
   name: "clear_whoami",
   description:
-    "Who am I in CLEAR? Returns the identity the configured API key resolves to (id, role, " +
+    "Who am I in CLEAR? Returns the identity the configured credential resolves to (id, role, " +
     "language), the teams the caller belongs to with their scope locations (a `teamId` " +
     "narrows Monitor tools to that scope; empty `locations` means global), the locale " +
     "requests are pinned to, whether the raw GraphQL escape hatch is enabled, and the " +
@@ -78,7 +78,7 @@ export const whoamiTool = defineTool({
     if (!me) {
       return fail({
         code: ERROR_CODES.UNAUTHENTICATED,
-        message: "clear-api did not recognise the configured CLEAR_API_KEY (me is null).",
+        message: "clear-api did not recognise the configured credential (me is null).",
       });
     }
 

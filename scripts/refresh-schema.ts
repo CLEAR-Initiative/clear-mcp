@@ -19,6 +19,7 @@ import {
   type IntrospectionQuery,
 } from "graphql";
 import { graphqlEndpoint, parseConfig } from "../src/config.js";
+import { credentialHeaders } from "../src/upstream.js";
 import { USER_AGENT_PREFIX } from "../src/version.js";
 
 const config = parseConfig(process.env);
@@ -28,7 +29,7 @@ const out = resolve(import.meta.dirname, "..", "schema.graphql");
 const response = await fetch(endpoint, {
   method: "POST",
   headers: {
-    authorization: `Bearer ${config.apiKey}`,
+    ...credentialHeaders(config.credential),
     "x-force-locale": config.locale,
     "content-type": "application/json",
     "user-agent": `${USER_AGENT_PREFIX} (refresh-schema)`,

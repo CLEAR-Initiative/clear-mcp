@@ -93,7 +93,7 @@ export function createServer(opts: CreateServerOptions): ClearMcpServer {
             ok: false,
             error: {
               code: "UNAUTHENTICATED",
-              message: "clear-api did not recognise the configured CLEAR_API_KEY (me is null).",
+              message: "clear-api did not recognise the configured credential (me is null).",
             },
           }
         : {

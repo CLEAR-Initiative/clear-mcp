@@ -93,6 +93,12 @@ interface Entry extends IndexedLocation {
   words: string[];
 }
 
+/**
+ * The index captures `upstream` — and so its credential — for its lifetime.
+ * A Tool library Consumer that shares one index across Callers builds it on
+ * an upstream carrying no Caller's credential (`locations(level)` is
+ * unguarded in clear-api), so no user's session ends up in shared state.
+ */
 export function createLocationIndex(deps: { upstream: Upstream; log?: Logger }): LocationIndex {
   const log = deps.log ?? silentLogger();
   let entries: Entry[] = [];

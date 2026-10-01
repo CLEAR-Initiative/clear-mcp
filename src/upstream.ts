@@ -1,4 +1,4 @@
-import { graphqlEndpoint, type Config } from "./config.js";
+import { graphqlEndpoint, type Config, type Credential } from "./config.js";
 import { ERROR_CODES, type ToolError } from "./errors.js";
 import type { TypedDocumentString } from "./gql/graphql.js";
 import { silentLogger, type Logger } from "./logger.js";
@@ -48,8 +48,18 @@ interface GraphQLResponseBody<T> {
 export const DEFAULT_TIMEOUT_MS = 10_000;
 
 /**
- * The single GraphQL client. Every request carries the Consumer's key as
- * `Authorization: Bearer`, the configured locale as `x-force-locale`, and
+ * The headers that authenticate as the Caller: `authorization: Bearer` for
+ * an API key, or the forwarded headers (names lower-cased) as given — never
+ * both, and nothing of clear-mcp's own.
+ */
+export function credentialHeaders(credential: Credential): Record<string, string> {
+  if (credential.kind === "apiKey") return { authorization: `Bearer ${credential.key}` };
+  return Object.fromEntries(Object.entries(credential.headers).map(([k, v]) => [k.toLowerCase(), v]));
+}
+
+/**
+ * The single GraphQL client. Every request carries the Caller's credential
+ * (see `credentialHeaders`), the configured locale as `x-force-locale`, and
  * `User-Agent: clear-mcp/<version> (<tool>)`. Any failure — transport,
  * non-2xx, GraphQL `errors`, partial data — becomes `{ ok: false, error }`
  * so tools never throw on upstream conditions.
@@ -74,8 +84,9 @@ export function createUpstream(opts: {
   ): Promise<UpstreamResult<TData>> {
     const query = String(req.document);
     const operationName = req.operationName ?? operationNameOf(query) ?? undefined;
+    // Forwarded headers never override the protocol ones below.
     const headers: Record<string, string> = {
-      authorization: `Bearer ${config.apiKey}`,
+      ...credentialHeaders(config.credential),
       "x-force-locale": config.locale,
       "content-type": "application/json",
       accept: "application/json",

@@ -9,7 +9,7 @@
  * `tests/library/entry.test.ts` holds that too. The Escape hatch is not
  * part of the library — a Consumer gets the Curated tools only.
  */
-export { SUPPORTED_LOCALES, type Config, type Locale } from "./config.js";
+export { SUPPORTED_LOCALES, type Config, type Credential, type Locale } from "./config.js";
 export { ERROR_CODES, type ToolError, type ToolOutcome } from "./errors.js";
 export { createLocationIndex, type LocationIndex } from "./location-index.js";
 export { silentLogger, type Logger } from "./logger.js";

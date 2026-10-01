@@ -50,7 +50,7 @@ Release: `bun run set-version X.Y.Z` in a PR → merge → `git tag vX.Y.Z && gi
 | Module | Responsibility |
 |---|---|
 | `src/config.ts` | Parses the five `CLEAR_*` env vars with zod; missing required vars → exit 1, named on stderr |
-| `src/upstream.ts` | The single GraphQL client. Adds `Authorization`, `x-force-locale`, `User-Agent: clear-mcp/<version> (<tool>)`; normalises every failure to `{ ok: false, error: ToolError }` |
+| `src/upstream.ts` | The single GraphQL client. Adds the Caller's credential (`authorization: Bearer` for an API key, or forwarded headers such as the session `cookie`), `x-force-locale`, `User-Agent: clear-mcp/<version> (<tool>)`; normalises every failure to `{ ok: false, error: ToolError }` |
 | `src/server.ts` | `createServer({ config, fetch })` — builds the `McpServer`, registers tools, exposes `selfCheck()` |
 | `src/tools/*` | One module per Curated tool: `{ name, description, input, output, run }` via `defineTool` |
 | `src/location-index.ts` | In-memory levels 0–2 index behind `clear_find_location`; loaded once per process |
@@ -96,11 +96,12 @@ chunks, comments) goes only under a `content` key.
 - **Never select** `Location.geometry`, `Location.children`, `Location.metadata`,
   `Event.signals { … }` beyond ids, `User.email`, `UserAlert`, `Notification`, or any org/user
   relation.
-- **Every upstream request** carries `Authorization`, `x-force-locale`, and
+- **Every upstream request** carries the Caller's credential, `x-force-locale`, and
   `User-Agent: clear-mcp/<version> (<tool>)` — only `src/upstream.ts` talks to the network.
 - **At most two upstream requests per curated tool call**; `clear_find_location` amortises its
   load to once per process.
-- **The server holds exactly one credential** (the Consumer's key) and forwards it unchanged.
+- **clear-mcp holds exactly one credential** (`Config.credential`: the Consumer's key, or the
+  Tool library Consumer's forwarded session headers) and forwards it unchanged.
 - **One version, three channels.** Never hand-edit a version: `bun run set-version`. The plugin and the
   `.mcpb` may set only `CLEAR_API_URL`, `CLEAR_API_KEY` (sensitive) and `CLEAR_MCP_LOCALE` — never
   `CLEAR_MCP_RAW_GRAPHQL` (ADR-0004, ADR-0008).
