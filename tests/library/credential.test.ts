@@ -41,23 +41,58 @@ describe("upstream credential", () => {
     expect(headers["user-agent"]).toMatch(/^clear-mcp\/\d+\.\d+\.\d+ \(clear_whoami\)$/);
   });
 
-  it("forwarded headers cannot override the locale, content type or User-Agent", async () => {
+  it("forwards only cookie and authorization from a whole request's headers", async () => {
     const seam = createLibrarySeam({
       config: {
         credential: {
           kind: "headers",
-          headers: { cookie: COOKIE, "X-Force-Locale": "fr", "Content-Type": "text/plain", "User-Agent": "spoof" },
+          headers: {
+            Cookie: COOKIE,
+            "Content-Length": "1234",
+            Host: "clear-mvp.example.org",
+            Origin: "https://clear-mvp.example.org",
+            "X-Forwarded-For": "10.0.0.1",
+            "X-Force-Locale": "fr",
+            "Content-Type": "text/plain",
+            "User-Agent": "spoof",
+          },
         },
       },
       fixtures: { ClearWhoami: { data: { me: ME, myTeams: [] } } },
     });
-    await seam.runTool("clear_whoami");
-    expect(seam.requests[0]!.headers).toMatchObject({
+    expect(await seam.runTool("clear_whoami")).toMatchObject({ ok: true });
+    const { headers } = seam.requests[0]!;
+    expect(Object.keys(headers).sort()).toEqual(["accept", "content-type", "cookie", "user-agent", "x-force-locale"]);
+    expect(headers).toMatchObject({
       cookie: COOKIE,
       "x-force-locale": "en",
       "content-type": "application/json",
       "user-agent": expect.stringMatching(/^clear-mcp\//),
     });
+  });
+
+  it("prefers the exact lower-case name when a header is given in several casings", async () => {
+    const seam = createLibrarySeam({
+      config: { credential: { kind: "headers", headers: { Cookie: "a=1", cookie: "b=2", AUTHORIZATION: "Bearer x", Authorization: "Bearer y" } } },
+      fixtures: { ClearWhoami: { data: { me: ME, myTeams: [] } } },
+    });
+    await seam.runTool("clear_whoami");
+    // Exact lower-case wins; otherwise the first casing in insertion order.
+    expect(seam.requests[0]!.headers).toMatchObject({ cookie: "b=2", authorization: "Bearer x" });
+  });
+
+  it("reports fetch's cause when clear-api is unreachable, never echoing the credential", async () => {
+    const cause = new TypeError(`Headers.append: "${COOKIE}\r\n" is an invalid header value.`);
+    const seam = createLibrarySeam({
+      config: { credential: { kind: "headers", headers: { cookie: COOKIE } } },
+      fixtures: { ClearWhoami: { reject: new TypeError("fetch failed", { cause }) } },
+    });
+    const outcome = await seam.runTool("clear_whoami");
+    expect(outcome).toMatchObject({ ok: false, error: { code: "UPSTREAM_UNAVAILABLE" } });
+    const { message } = (outcome as { error: { message: string } }).error;
+    expect(message).toBe(
+      'clear-api at https://api.clear.test/graphql is unreachable: fetch failed: Headers.append: "[redacted] " is an invalid header value.',
+    );
   });
 
   it("reports an unrecognised credential without naming an environment variable", async () => {

@@ -48,13 +48,30 @@ interface GraphQLResponseBody<T> {
 export const DEFAULT_TIMEOUT_MS = 10_000;
 
 /**
+ * The only headers a `headers` credential forwards. A Consumer may hand over
+ * its whole incoming request's headers; anything else (`content-length`,
+ * `host`, `origin`, `x-forwarded-*`…) is dropped, since it describes that
+ * request, not the Caller — and some of it makes fetch refuse to send.
+ */
+export const FORWARDED_CREDENTIAL_HEADERS = ["authorization", "cookie"] as const;
+
+/**
  * The headers that authenticate as the Caller: `authorization: Bearer` for
- * an API key, or the forwarded headers (names lower-cased) as given — never
- * both, and nothing of clear-mcp's own.
+ * an API key, or the allowlisted forwarded headers, sent lower-cased and
+ * unchanged — nothing of clear-mcp's own. Names match case-insensitively;
+ * when several casings are given, the exact lower-case one wins, else the
+ * first in insertion order.
  */
 export function credentialHeaders(credential: Credential): Record<string, string> {
   if (credential.kind === "apiKey") return { authorization: `Bearer ${credential.key}` };
-  return Object.fromEntries(Object.entries(credential.headers).map(([k, v]) => [k.toLowerCase(), v]));
+  const out: Record<string, string> = {};
+  for (const name of FORWARDED_CREDENTIAL_HEADERS) {
+    const value = Object.hasOwn(credential.headers, name)
+      ? credential.headers[name]
+      : Object.entries(credential.headers).find(([k]) => k.toLowerCase() === name)?.[1];
+    if (value !== undefined) out[name] = value;
+  }
+  return out;
 }
 
 /**
@@ -84,9 +101,9 @@ export function createUpstream(opts: {
   ): Promise<UpstreamResult<TData>> {
     const query = String(req.document);
     const operationName = req.operationName ?? operationNameOf(query) ?? undefined;
-    // Forwarded headers never override the protocol ones below.
+    const credential = credentialHeaders(config.credential);
     const headers: Record<string, string> = {
-      ...credentialHeaders(config.credential),
+      ...credential,
       "x-force-locale": config.locale,
       "content-type": "application/json",
       accept: "application/json",
@@ -105,11 +122,7 @@ export function createUpstream(opts: {
       });
     } catch (err) {
       const timedOut = err instanceof Error && err.name === "TimeoutError";
-      const message = timedOut
-        ? `timed out after ${timeoutMs} ms`
-        : err instanceof Error
-          ? err.message
-          : String(err);
+      const message = timedOut ? `timed out after ${timeoutMs} ms` : describeFetchError(err, Object.values(credential));
       log.error({ tool: req.toolName, op: operationName, err: message }, "upstream unreachable");
       return {
         ok: false,
@@ -179,6 +192,20 @@ export function createUpstream(opts: {
   }
 
   return { request, endpoint };
+}
+
+/**
+ * The fetch failure and its `cause` (Node's fetch says only "fetch failed";
+ * the reason — DNS, refused, a bad header — is in the cause), on one line,
+ * with every credential value redacted: a header error can echo the value.
+ */
+function describeFetchError(err: unknown, secrets: string[]): string {
+  const parts = [err instanceof Error ? err.message : String(err)];
+  const cause = err instanceof Error && err.cause instanceof Error ? err.cause.message : undefined;
+  if (cause && cause !== parts[0]) parts.push(cause);
+  let text = parts.join(": ");
+  for (const secret of secrets) if (secret) text = text.split(secret).join("[redacted]");
+  return truncate(text.replace(/[\r\n]+/g, " "), 300);
 }
 
 async function safeText(response: Response): Promise<string> {
