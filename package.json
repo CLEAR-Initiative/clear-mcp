@@ -57,6 +57,7 @@
     "prepublishOnly": "bun run build"
   },
   "dependencies": {
+    "@graphql-typed-document-node/core": "^3.2.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "graphql": "^16.13.0",
     "pino": "^10.3.1",

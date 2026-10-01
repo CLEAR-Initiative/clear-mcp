@@ -288,12 +288,16 @@ const outcome = await runTool(tool, { limit: 5 }, { config, upstream, log: silen
 if (!outcome.ok) console.warn(outcome.error.code); // e.g. BAD_USER_INPUT, FORBIDDEN — a value, never thrown
 ```
 
-Each tool is `{ name, description, input, output, run }`: `input` and `output` are zod v4 object
-schemas (they implement Standard Schema, so frameworks such as Mastra take them as they are), and
-`run` resolves to `{ ok: true, value }` or `{ ok: false, error: { code, subCode?, message } }`.
+Each tool is `{ name, description, input, output, run }`, and `run` resolves to
+`{ ok: true, value }` or `{ ok: false, error: { code, subCode?, message } }`. `input` and `output`
+are **zod v4** object schemas from this package's own `zod` dependency, whatever zod version your
+app uses. Treat them as [Standard Schema](https://standardschema.dev) values — validate with them,
+convert them to JSON Schema, or pass them to a framework such as Mastra as they are — but never
+compose them with your own zod (`z.union`, `.extend`, …): two zod copies do not mix.
 Call tools through `runTool(tool, args, ctx)` — the same path the MCP server takes: it validates
 `args` against `input` (invalid input is a `BAD_USER_INPUT` value) and then runs the tool.
-Locale is per upstream, never a tool argument. The location index loads each locale's tiers
+Set `rawGraphql: false`: the escape hatch is never part of the library, and `clear_whoami`
+reports this flag as `escapeHatchEnabled`. Locale is per upstream, never a tool argument. The location index loads each locale's tiers
 once, through whichever request first needs them, and shares them across users — this relies on
 clear-api's `locations(level)` returning the same tiers to every Caller. The library reads its
 own `package.json` at load, so it runs on Node only; in Next.js, list `@clear-initiative/mcp` in

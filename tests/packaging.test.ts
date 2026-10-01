@@ -7,7 +7,7 @@
  * carries the Tool library entry (ADR-0009): pin that it ships typed.
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -31,6 +31,7 @@ const pkg = read<{
   bin: Record<string, string>;
   exports: Record<string, string | Record<string, string>>;
   files: string[];
+  dependencies: Record<string, string>;
 }>("package.json");
 const plugin = read<{ version: string; mcpServers: Record<string, ServerConfig>; userConfig: Record<string, UserConfigOption> }>(
   ".claude-plugin/plugin.json",
@@ -123,5 +124,20 @@ describe("Tool library entry", () => {
     walk(built("./dist/library.d.ts"));
     expect([...seen].some((f) => f.endsWith("/tools/types.d.ts"))).toBe(true);
     expect([...seen].filter((f) => /\/(server|bin|escape-hatch)\.d\.ts$/.test(f))).toEqual([]);
+  });
+
+  it("imports only declared dependencies from every shipped .js and .d.ts", () => {
+    // A devDependency named here (types included) is missing from a Consumer's install.
+    const packageOf = (spec: string) => spec.split("/").slice(0, spec.startsWith("@") ? 2 : 1).join("/");
+    const undeclared: string[] = [];
+    for (const file of readdirSync(out, { recursive: true, encoding: "utf8" })) {
+      if (!/\.(js|d\.ts)$/.test(file)) continue;
+      const source = readFileSync(join(out, file), "utf8");
+      for (const [, spec] of source.matchAll(/\b(?:from|import)\s*\(?\s*["']([@a-z][\w@./-]*)["']/g)) {
+        if (spec!.startsWith("node:") || packageOf(spec!) in pkg.dependencies) continue;
+        undeclared.push(`${file}: ${spec}`);
+      }
+    }
+    expect(undeclared).toEqual([]);
   });
 });
