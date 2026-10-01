@@ -1,7 +1,7 @@
 import { graphqlEndpoint, type Config } from "./config.js";
 import { ERROR_CODES, type ToolError } from "./errors.js";
 import type { TypedDocumentString } from "./gql/graphql.js";
-import type { Logger } from "./logger.js";
+import { silentLogger, type Logger } from "./logger.js";
 import { USER_AGENT_PREFIX } from "./version.js";
 
 /** Outcome of one upstream request, normalised to a discriminated union. */
@@ -56,13 +56,17 @@ export const DEFAULT_TIMEOUT_MS = 10_000;
  */
 export function createUpstream(opts: {
   config: Config;
-  fetch: FetchLike;
-  log: Logger;
+  /** Defaults to global fetch. */
+  fetch?: FetchLike;
+  /** Defaults to a silent logger (a Tool library Consumer may bring its own pino). */
+  log?: Logger;
   /** Per-request deadline; defaults to 10 s. Injectable so tests can hit it. */
   timeoutMs?: number;
 }): Upstream {
   const endpoint = graphqlEndpoint(opts.config);
-  const { fetch, log, config } = opts;
+  const { config } = opts;
+  const fetch: FetchLike = opts.fetch ?? ((input, init) => globalThis.fetch(input, init));
+  const log = opts.log ?? silentLogger();
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   async function request<TData, TVariables>(

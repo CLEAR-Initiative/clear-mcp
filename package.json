@@ -21,6 +21,13 @@
   "bin": {
     "clear-mcp": "dist/bin.js"
   },
+  "exports": {
+    "./library": {
+      "types": "./dist/library.d.ts",
+      "default": "./dist/library.js"
+    },
+    "./package.json": "./package.json"
+  },
   "files": [
     "dist",
     "schema.graphql",

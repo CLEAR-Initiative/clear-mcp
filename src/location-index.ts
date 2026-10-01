@@ -1,6 +1,6 @@
 import type { ToolError } from "./errors.js";
 import { graphql } from "./gql/index.js";
-import type { Logger } from "./logger.js";
+import { silentLogger, type Logger } from "./logger.js";
 import type { Upstream } from "./upstream.js";
 
 /**
@@ -93,7 +93,8 @@ interface Entry extends IndexedLocation {
   words: string[];
 }
 
-export function createLocationIndex(deps: { upstream: Upstream; log: Logger }): LocationIndex {
+export function createLocationIndex(deps: { upstream: Upstream; log?: Logger }): LocationIndex {
+  const log = deps.log ?? silentLogger();
   let entries: Entry[] = [];
   let byId = new Map<string, Entry>();
   let loaded = false;
@@ -120,7 +121,7 @@ export function createLocationIndex(deps: { upstream: Upstream; log: Logger }): 
     entries = next;
     byId = new Map(next.map((e) => [e.id, e]));
     loaded = true;
-    deps.log.info(
+    log.info(
       {
         countries: res.data.countries.length,
         states: res.data.states.length,

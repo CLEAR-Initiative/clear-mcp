@@ -24,8 +24,7 @@ export interface ToolDeps {
  * Every entry is read-only (ADR-0002); the Escape hatch is registered
  * separately and only when `CLEAR_MCP_RAW_GRAPHQL=1`.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function curatedTools(deps: ToolDeps): ToolDefinition<any, any>[] {
+export function curatedTools(deps: ToolDeps): ToolDefinition[] {
   return [
     // Orient
     whoamiTool,
