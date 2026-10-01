@@ -494,6 +494,34 @@ describe("Tool library parity with MCP", () => {
     }
   });
 
+  // Invalid input never reaches clear-api by either route. The MCP SDK rejects it against the
+  // input schema before the server's handler runs, in its own wording (`MCP error -32602: …`), so
+  // the comparison is: both are errors, neither made a request, and both carry zod's issue text.
+  it.each([
+    ["clear_list_events", { severityMin: 99 }, "severityMin"],
+    ["clear_find_location", { query: "" }, "query"],
+    ["clear_search_knowledge_base", { query: "   " }, "query"],
+    ["clear_get_event", {}, "id"],
+  ] as const)("%s rejects invalid input %j as BAD_USER_INPUT", async (tool, args, field) => {
+    const mcp = await connect();
+    try {
+      const result = await mcp.callTool(tool, args);
+      const library = createLibrarySeam();
+      const outcome = await library.runTool(tool, args);
+
+      expect(outcome).toMatchObject({ ok: false, error: { code: "BAD_USER_INPUT" } });
+      const message = (outcome as { error: { message: string } }).error.message;
+      expect(message.startsWith(`${field}: `)).toBe(true);
+      expect(result.isError).toBe(true);
+      const text = result.content.find((c) => c.type === "text")!.text as string;
+      expect(text).toContain(`${message.slice(field.length + 2)} at ${field}`);
+      expect(library.requests).toEqual([]);
+      expect(mcp.requests).toEqual([]);
+    } finally {
+      await mcp.close();
+    }
+  });
+
   it("gives an Agent's system prompt the same third-party-content rule the MCP instructions carry", async () => {
     const mcp = await connect();
     try {

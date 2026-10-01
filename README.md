@@ -263,6 +263,7 @@ import {
   createLocationIndex,
   createUpstream,
   curatedTools,
+  runTool,
   silentLogger,
   THIRD_PARTY_CONTENT_RULE, // put this in your Agent's system prompt
   type Config,
@@ -283,13 +284,15 @@ const config: Config = {
 const upstream = createUpstream({ config });
 
 const tool = tools.find((t) => t.name === "clear_list_events")!;
-const outcome = await tool.run(tool.input.parse({ limit: 5 }), { config, upstream, log: silentLogger(), toolName: tool.name });
-if (!outcome.ok) console.warn(outcome.error.code); // e.g. FORBIDDEN, UNAUTHENTICATED — a value, never thrown
+const outcome = await runTool(tool, { limit: 5 }, { config, upstream, log: silentLogger() });
+if (!outcome.ok) console.warn(outcome.error.code); // e.g. BAD_USER_INPUT, FORBIDDEN — a value, never thrown
 ```
 
 Each tool is `{ name, description, input, output, run }`: `input` and `output` are zod v4 object
 schemas (they implement Standard Schema, so frameworks such as Mastra take them as they are), and
 `run` resolves to `{ ok: true, value }` or `{ ok: false, error: { code, subCode?, message } }`.
+Call tools through `runTool(tool, args, ctx)` — the same path the MCP server takes: it validates
+`args` against `input` (invalid input is a `BAD_USER_INPUT` value) and then runs the tool.
 Locale is per upstream, never a tool argument. The location index loads each locale's tiers
 once, through whichever request first needs them, and shares them across users — this relies on
 clear-api's `locations(level)` returning the same tiers to every Caller. The library reads its

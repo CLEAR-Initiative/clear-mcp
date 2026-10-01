@@ -15,5 +15,5 @@ export { createLocationIndex, type LocationIndex } from "./location-index.js";
 export { silentLogger, type Logger } from "./logger.js";
 export { curatedTools, type ToolDeps } from "./tools/index.js";
 export { THIRD_PARTY_CONTENT_RULE } from "./tools/shared.js";
-export type { ToolContext, ToolDefinition } from "./tools/types.js";
+export { runTool, type ToolContext, type ToolDefinition } from "./tools/types.js";
 export { createUpstream, type FetchLike, type Upstream } from "./upstream.js";

@@ -8,7 +8,7 @@ import { createLogger, silentLogger, type Logger } from "./logger.js";
 import { createLocationIndex } from "./location-index.js";
 import { curatedTools } from "./tools/index.js";
 import { THIRD_PARTY_CONTENT_RULE } from "./tools/shared.js";
-import type { ToolContext, ToolDefinition } from "./tools/types.js";
+import { runTool, type ToolContext, type ToolDefinition } from "./tools/types.js";
 import { createUpstream, type FetchLike, type Upstream } from "./upstream.js";
 import { VERSION } from "./version.js";
 
@@ -124,7 +124,6 @@ function registerCuratedTool(
   tool: ToolDefinition,
   deps: Omit<ToolContext, "toolName">,
 ): void {
-  const ctx: ToolContext = { ...deps, toolName: tool.name };
   server.registerTool(
     tool.name,
     {
@@ -133,17 +132,10 @@ function registerCuratedTool(
       outputSchema: tool.output.shape,
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     },
+    // The SDK validates `args` against inputSchema first; runTool's own parse
+    // is the same path a Tool library Consumer takes (and applies defaults).
     async (args: unknown): Promise<CallToolResult> => {
-      const parsed = tool.input.safeParse(args ?? {});
-      if (!parsed.success) {
-        return errorResult({
-          code: "BAD_USER_INPUT",
-          message: parsed.error.issues
-            .map((i) => `${i.path.join(".") || "input"}: ${i.message}`)
-            .join("; "),
-        });
-      }
-      const outcome = await tool.run(parsed.data, ctx);
+      const outcome = await runTool(tool, args, deps);
       if (!outcome.ok) return errorResult(outcome.error);
       return successResult(outcome.value);
     },

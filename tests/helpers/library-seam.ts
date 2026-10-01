@@ -9,6 +9,7 @@ import {
   createLocationIndex,
   createUpstream,
   curatedTools,
+  runTool,
   silentLogger,
   type Config,
   type ToolDefinition,
@@ -21,7 +22,7 @@ export interface LibrarySeam {
   tools: ToolDefinition[];
   fixtures: FixtureFetch;
   requests: RecordedRequest[];
-  /** Parse `args` with the tool's input schema (as an Agent framework does), then `run` it. */
+  /** `runTool` from the library: parse `args` (BAD_USER_INPUT on failure), then `run`. */
   runTool(name: string, args?: Record<string, unknown>): Promise<ToolOutcome<Record<string, unknown>>>;
 }
 
@@ -52,7 +53,7 @@ export function createLibrarySeam(opts: {
     async runTool(name, args = {}) {
       const tool = tools.find((t) => t.name === name);
       if (!tool) throw new Error(`No curated tool named "${name}"`);
-      return tool.run(tool.input.parse(args), { config, upstream, log, toolName: tool.name });
+      return runTool(tool, args, { config, upstream, log });
     },
   };
 }

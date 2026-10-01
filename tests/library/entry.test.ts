@@ -38,6 +38,7 @@ describe("library entry", () => {
       "createLocationIndex",
       "createUpstream",
       "curatedTools",
+      "runTool",
       "silentLogger",
     ]);
   });
