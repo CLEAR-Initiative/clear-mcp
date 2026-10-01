@@ -246,8 +246,49 @@ See [`CONTEXT.md`](CONTEXT.md) for vocabulary and [`docs/adr/`](docs/adr/) for t
 behind the design: separate service over GraphQL (0001), read-only V1 (0002), curated tools over
 generated ones (0003), the escape hatch as a config flag (0004), JSON results with errors as
 values (0005), why `clear_get_datapoints` requires a location (0006), and why skills ship as
-files rather than over the MCP connection (0007), and why it installs three ways — npm, the
-Claude Code plugin and a Claude Desktop extension — from one version (0008).
+files rather than over the MCP connection (0007), why it installs three ways — npm, the
+Claude Code plugin and a Claude Desktop extension — from one version (0008), and why the same
+tools are also published as a Tool library (0009).
+
+## Tool library
+
+The npm package also exports the curated tools for an Agent running in your own Node process —
+no MCP protocol, no subprocess — as `@clear-initiative/mcp/library` (ADR-0009). Same tools, same
+descriptions, same results as the server; the escape hatch is not included. The upstream
+credential is pluggable: an API key, or headers forwarded from your signed-in user (their session
+`cookie`), so every call runs with exactly that user's clear-api permissions.
+
+```ts
+import {
+  createLocationIndex,
+  createUpstream,
+  curatedTools,
+  silentLogger,
+  THIRD_PARTY_CONTENT_RULE, // put this in your Agent's system prompt
+  type Config,
+} from "@clear-initiative/mcp/library";
+
+const base = { apiUrl: "https://api.clear.example.org", rawGraphql: false, logLevel: "silent" } as const;
+
+// Once per process. The location index is cached for the life of the instance and captures its
+// upstream's credential, so build it on one carrying no user's credential (`locations` is public).
+const anonymous = createUpstream({ config: { ...base, locale: "en", credential: { kind: "headers", headers: {} } } });
+const tools = curatedTools({ locationIndex: createLocationIndex({ upstream: anonymous }) });
+
+// Per request: the signed-in user's session and locale.
+const config: Config = { ...base, locale: "fr", credential: { kind: "headers", headers: { cookie } } };
+const upstream = createUpstream({ config });
+
+const tool = tools.find((t) => t.name === "clear_list_events")!;
+const outcome = await tool.run(tool.input.parse({ limit: 5 }), { config, upstream, log: silentLogger(), toolName: tool.name });
+if (!outcome.ok) console.warn(outcome.error.code); // e.g. FORBIDDEN, UNAUTHENTICATED — a value, never thrown
+```
+
+Each tool is `{ name, description, input, output, run }`: `input` and `output` are zod v4 object
+schemas (they implement Standard Schema, so frameworks such as Mastra take them as they are), and
+`run` resolves to `{ ok: true, value }` or `{ ok: false, error: { code, subCode?, message } }`.
+Locale is per upstream, never a tool argument. The library reads its own `package.json` at load,
+so it runs on Node only; in Next.js, list `@clear-initiative/mcp` in `serverExternalPackages`.
 
 ## Skills
 

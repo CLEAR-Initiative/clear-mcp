@@ -3,11 +3,14 @@
  * extension) each write the version and the server's configuration down
  * separately. Pin them to each other so a release cannot ship a plugin that
  * runs a different server version than its skills describe, or an extension
- * that sets a variable the server does not read.
+ * that sets a variable the server does not read. The npm package also
+ * carries the Tool library entry (ADR-0009): pin that it ships typed.
  */
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { connect, type Seam } from "./helpers/seam.js";
 
 const read = <T>(path: string): T => JSON.parse(readFileSync(resolve(import.meta.dirname, "..", path), "utf8")) as T;
@@ -22,7 +25,13 @@ interface UserConfigOption {
   sensitive?: boolean;
 }
 
-const pkg = read<{ name: string; version: string; bin: Record<string, string>; files: string[] }>("package.json");
+const pkg = read<{
+  name: string;
+  version: string;
+  bin: Record<string, string>;
+  exports: Record<string, string | Record<string, string>>;
+  files: string[];
+}>("package.json");
 const plugin = read<{ version: string; mcpServers: Record<string, ServerConfig>; userConfig: Record<string, UserConfigOption> }>(
   ".claude-plugin/plugin.json",
 );
@@ -74,5 +83,45 @@ describe("install channels", () => {
     seam = await connect();
     const { tools } = await seam.client.listTools();
     expect(manifest.tools.map((t) => t.name)).toEqual(tools.map((t) => t.name));
+  });
+});
+
+describe("Tool library entry", () => {
+  // Emit the build into a scratch dir (what `bun run build` puts in dist/) so
+  // this holds without a prior build.
+  let out: string;
+  beforeAll(() => {
+    out = mkdtempSync(join(tmpdir(), "clear-mcp-build-"));
+    const root = resolve(import.meta.dirname, "..");
+    execFileSync(join(root, "node_modules", ".bin", "tsc"), ["-p", "tsconfig.build.json", "--outDir", out], { cwd: root });
+  });
+  afterAll(() => rmSync(out, { recursive: true, force: true }));
+
+  /** A `./dist/…` path from package.json, in the scratch build. */
+  const built = (path: string) => join(out, path.replace(/^\.\/dist\//, ""));
+
+  it("is exported as ./library with types, shipped under dist/", () => {
+    expect(pkg.exports["./library"]).toEqual({ types: "./dist/library.d.ts", default: "./dist/library.js" });
+    expect(pkg.files).toContain("dist");
+    expect(existsSync(built("./dist/library.js"))).toBe(true);
+    expect(existsSync(built("./dist/library.d.ts"))).toBe(true);
+  });
+
+  it("ships declarations that never reach the MCP SDK or the server", () => {
+    // Walk the relative imports of library.d.ts; every one must have shipped.
+    const seen = new Set<string>();
+    const walk = (file: string) => {
+      if (seen.has(file)) return;
+      seen.add(file);
+      expect(existsSync(file), file).toBe(true);
+      const source = readFileSync(file, "utf8");
+      expect(source, file).not.toMatch(/@modelcontextprotocol/);
+      for (const [, spec] of source.matchAll(/from "(\.{1,2}\/[^"]+)\.js"/g)) {
+        walk(resolve(dirname(file), `${spec}.d.ts`));
+      }
+    };
+    walk(built("./dist/library.d.ts"));
+    expect([...seen].some((f) => f.endsWith("/tools/types.d.ts"))).toBe(true);
+    expect([...seen].filter((f) => /\/(server|bin|escape-hatch)\.d\.ts$/.test(f))).toEqual([]);
   });
 });
