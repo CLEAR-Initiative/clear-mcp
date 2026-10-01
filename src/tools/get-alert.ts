@@ -74,6 +74,7 @@ export const getAlertTool = defineTool({
       document: GET_ALERT_DOCUMENT,
       variables: { id: input.id },
       toolName: ctx.toolName,
+      signal: ctx.signal,
     });
     if (!res.ok) return fail(res.error);
 

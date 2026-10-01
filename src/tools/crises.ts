@@ -110,7 +110,7 @@ export const listCrisesTool = defineTool({
   async run(input, ctx) {
     const limit = clampLimit(input.limit);
     const offset = clampOffset(input.offset);
-    const res = await ctx.upstream.request({ document: LIST_CRISES_DOCUMENT, toolName: ctx.toolName });
+    const res = await ctx.upstream.request({ document: LIST_CRISES_DOCUMENT, toolName: ctx.toolName, signal: ctx.signal });
     if (!res.ok) return fail(res.error);
 
     const all = [...res.data.crises].sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0));
@@ -154,6 +154,7 @@ export const getCrisisTool = defineTool({
       document: GET_CRISIS_DOCUMENT,
       variables: { id: input.id },
       toolName: ctx.toolName,
+      signal: ctx.signal,
     });
     if (!res.ok) return fail(res.error);
     const c = res.data.crisis;

@@ -96,6 +96,7 @@ export const getEventTool = defineTool({
       document: GET_EVENT_DOCUMENT,
       variables: { id: input.id },
       toolName: ctx.toolName,
+      signal: ctx.signal,
     });
     if (!res.ok) return fail(res.error);
 

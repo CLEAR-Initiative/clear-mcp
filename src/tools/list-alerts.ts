@@ -107,6 +107,7 @@ export const listAlertsTool = defineTool({
         }),
       },
       toolName: ctx.toolName,
+      signal: ctx.signal,
     });
     if (!res.ok) return fail(res.error);
 

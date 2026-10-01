@@ -23,7 +23,11 @@ export interface LibrarySeam {
   fixtures: FixtureFetch;
   requests: RecordedRequest[];
   /** `runTool` from the library: parse `args` (BAD_USER_INPUT on failure), then `run`. */
-  runTool(name: string, args?: Record<string, unknown>): Promise<ToolOutcome<Record<string, unknown>>>;
+  runTool(
+    name: string,
+    args?: Record<string, unknown>,
+    opts?: { signal?: AbortSignal },
+  ): Promise<ToolOutcome<Record<string, unknown>>>;
 }
 
 /** The library equivalent of `connect()` with TEST_ENV — the same Caller, URL and locale. */
@@ -38,11 +42,12 @@ export const TEST_CONFIG: Config = {
 export function createLibrarySeam(opts: {
   config?: Partial<Config>;
   fixtures?: Record<string, Responder | FixtureResponse>;
+  upstreamTimeoutMs?: number;
 } = {}): LibrarySeam {
   const config: Config = { ...TEST_CONFIG, ...opts.config };
   const fixtures = createFixtureFetch(opts.fixtures);
   const log = silentLogger();
-  const upstream = createUpstream({ config, fetch: fixtures.fetch, log });
+  const upstream = createUpstream({ config, fetch: fixtures.fetch, log, timeoutMs: opts.upstreamTimeoutMs });
   const tools = curatedTools({ locationIndex: createLocationIndex({ log }) });
 
   return {
@@ -50,10 +55,10 @@ export function createLibrarySeam(opts: {
     tools,
     fixtures,
     requests: fixtures.requests,
-    async runTool(name, args = {}) {
+    async runTool(name, args = {}, { signal } = {}) {
       const tool = tools.find((t) => t.name === name);
       if (!tool) throw new Error(`No curated tool named "${name}"`);
-      return runTool(tool, args, { config, upstream, log });
+      return runTool(tool, args, { config, upstream, log, signal });
     },
   };
 }

@@ -75,7 +75,9 @@ export interface LocationIndex {
   /**
    * Load `locale`'s tiers through `upstream` if they are not cached yet;
    * resolves to a ToolError on upstream failure. The upstream (and so the
-   * Caller's credential) is used for that one request and never kept.
+   * Caller's credential) is used for that one request and never kept. A
+   * load is shared by every concurrent caller, so it takes no AbortSignal:
+   * one Caller's cancellation must not fail another's lookup.
    */
   ensureLoaded(req: LoadRequest): Promise<ToolError | null>;
   /** Ranked matches in `opts.locale`'s tiers; call `ensureLoaded` first. */

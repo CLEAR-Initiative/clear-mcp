@@ -64,6 +64,7 @@ export const countTool = defineTool({
         }),
       },
       toolName: ctx.toolName,
+      signal: ctx.signal,
     });
     if (!res.ok) return fail(res.error);
 

@@ -85,6 +85,7 @@ export const graphqlTool = defineTool({
       operationName: input.operationName ?? checked.operationName ?? undefined,
       variables: input.variables,
       toolName: ctx.toolName,
+      signal: ctx.signal,
     });
     if (!res.ok) return fail(res.error);
     return ok({ data: res.data });

@@ -71,7 +71,7 @@ export const whoamiTool = defineTool({
     apiUrl: z.string(),
   }),
   async run(_input, ctx) {
-    const res = await ctx.upstream.request({ document: WHOAMI_DOCUMENT, toolName: ctx.toolName });
+    const res = await ctx.upstream.request({ document: WHOAMI_DOCUMENT, toolName: ctx.toolName, signal: ctx.signal });
     if (!res.ok) return fail(res.error);
 
     const { me, myTeams } = res.data;

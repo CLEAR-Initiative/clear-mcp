@@ -10,6 +10,11 @@ export interface ToolContext {
   upstream: Upstream;
   log: Logger;
   toolName: string;
+  /**
+   * Aborts the tool's upstream requests — e.g. a cancelled Agent turn —
+   * alongside the upstream's own timeout. A tool returns a CANCELLED value.
+   */
+  signal?: AbortSignal;
 }
 
 /**

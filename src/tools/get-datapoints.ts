@@ -112,6 +112,7 @@ export const getDatapointsTool = defineTool({
         asOf: input.asOf,
       }),
       toolName: ctx.toolName,
+      signal: ctx.signal,
     });
     if (!res.ok) return fail(res.error);
 

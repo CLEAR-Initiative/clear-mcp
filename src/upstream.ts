@@ -18,6 +18,8 @@ export interface UpstreamRequest<TData, TVariables> {
   variables?: TVariables;
   /** The tool issuing the request, sent in `User-Agent` for clear-api's logs. */
   toolName: string;
+  /** The Consumer's cancellation, combined with the per-request timeout. */
+  signal?: AbortSignal;
 }
 
 export interface Upstream {
@@ -118,9 +120,20 @@ export function createUpstream(opts: {
         method: "POST",
         headers,
         body,
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: req.signal ? AbortSignal.any([req.signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs),
       });
     } catch (err) {
+      if (req.signal?.aborted) {
+        log.info({ tool: req.toolName, op: operationName }, "upstream request cancelled");
+        return {
+          ok: false,
+          error: {
+            code: ERROR_CODES.CANCELLED,
+            message: `The request to clear-api at ${endpoint} was cancelled.`,
+            upstreamUrl: endpoint,
+          },
+        };
+      }
       const timedOut = err instanceof Error && err.name === "TimeoutError";
       const message = timedOut ? `timed out after ${timeoutMs} ms` : describeFetchError(err, Object.values(credential));
       log.error({ tool: req.toolName, op: operationName, err: message }, "upstream unreachable");

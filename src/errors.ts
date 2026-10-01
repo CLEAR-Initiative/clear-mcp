@@ -17,6 +17,8 @@ export const ERROR_CODES = {
   UPSTREAM_ERROR: "UPSTREAM_ERROR",
   UPSTREAM_UNAVAILABLE: "UPSTREAM_UNAVAILABLE",
   BAD_USER_INPUT: "BAD_USER_INPUT",
+  /** The Consumer aborted the request (`ToolContext.signal`). */
+  CANCELLED: "CANCELLED",
 } as const;
 
 export type ToolOutcome<T> = { ok: true; value: T } | { ok: false; error: ToolError };

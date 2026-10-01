@@ -297,11 +297,19 @@ compose them with your own zod (`z.union`, `.extend`, …): two zod copies do no
 Call tools through `runTool(tool, args, ctx)` — the same path the MCP server takes: it validates
 `args` against `input` (invalid input is a `BAD_USER_INPUT` value) and then runs the tool.
 Set `rawGraphql: false`: the escape hatch is never part of the library, and `clear_whoami`
-reports this flag as `escapeHatchEnabled`. Locale is per upstream, never a tool argument. The location index loads each locale's tiers
-once, through whichever request first needs them, and shares them across users — this relies on
-clear-api's `locations(level)` returning the same tiers to every Caller. The library reads its
-own `package.json` at load, so it runs on Node only; in Next.js, list `@clear-initiative/mcp` in
-`serverExternalPackages`.
+reports this flag as `escapeHatchEnabled`. Locale is per upstream, never a tool argument.
+
+The location index loads each locale's tiers once, through whichever request first needs them,
+and shares them across users — this relies on clear-api's `locations(level)` returning the same
+tiers to every Caller. Known limitation: the cache never expires, so locations added to clear-api
+appear only after a restart.
+
+Pass `signal` in the context (`runTool(tool, args, { …, signal })`) to abort a tool's upstream
+requests when, say, the user stops an Agent turn; the tool returns a `CANCELLED` value. This needs
+Node 20.3+ (`AbortSignal.any`).
+
+The library reads its own `package.json` at load, so it runs on Node only; in Next.js, list
+`@clear-initiative/mcp` in `serverExternalPackages`.
 
 ## Skills
 
