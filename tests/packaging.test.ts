@@ -71,6 +71,8 @@ describe("install channels", () => {
       expect(options.api_key, channel).toMatchObject({ required: true, sensitive: true });
       // The escape hatch is developer-only (ADR-0004): no one-click channel may switch it on.
       expect(config.env, channel).not.toHaveProperty("CLEAR_MCP_RAW_GRAPHQL");
+      // Nor the Worker tools (ADR-0010): a Worker process sets that flag itself.
+      expect(config.env, channel).not.toHaveProperty("CLEAR_MCP_WORKER");
     }
   });
 

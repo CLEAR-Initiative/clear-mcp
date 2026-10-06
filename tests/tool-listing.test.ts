@@ -25,6 +25,9 @@ export const CURATED_TOOLS = [
   "clear_list_figures",
 ];
 
+/** The Task Worker's write tools (ADR-0010), registered only under CLEAR_MCP_WORKER=1. */
+export const WORKER_TOOLS = ["clear_claim_tasks"];
+
 describe("tools/list", () => {
   let seam: Seam;
   afterEach(async () => {
@@ -46,6 +49,25 @@ describe("tools/list", () => {
     seam = await connect({ env: { CLEAR_MCP_RAW_GRAPHQL: "1" } });
     const names = (await seam.client.listTools()).tools.map((t) => t.name);
     expect(names).toEqual([...CURATED_TOOLS, "clear_graphql", "clear_schema_type"]);
+  });
+
+  it("adds the Worker tools, write-annotated, only when CLEAR_MCP_WORKER=1 — and never to the library", async () => {
+    for (const value of ["true", "yes", "0", ""]) {
+      const s = await connect({ env: { CLEAR_MCP_WORKER: value } });
+      expect((await s.client.listTools()).tools.map((t) => t.name), `CLEAR_MCP_WORKER=${value}`).toEqual(CURATED_TOOLS);
+      await s.close();
+    }
+    seam = await connect({ env: { CLEAR_MCP_WORKER: "1" } });
+    const { tools } = await seam.client.listTools();
+    expect(tools.map((t) => t.name)).toEqual([...CURATED_TOOLS, ...WORKER_TOOLS]);
+    for (const t of tools) {
+      const isWorker = WORKER_TOOLS.includes(t.name);
+      expect(t.annotations?.readOnlyHint, t.name).toBe(!isWorker);
+      expect(t.annotations?.destructiveHint, t.name).toBe(false);
+    }
+    expect(seam.logs.some((l) => String(l.msg).includes("Worker tools enabled"))).toBe(true);
+    const { tools: library } = createLibrarySeam({ config: { worker: true } });
+    expect(library.map((t) => t.name)).toEqual(CURATED_TOOLS);
   });
 
   it("offers the same tools and descriptions through the Tool library, never the escape hatch", async () => {

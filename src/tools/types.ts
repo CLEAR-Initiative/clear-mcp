@@ -17,6 +17,15 @@ export interface ToolContext {
   signal?: AbortSignal;
 }
 
+/** MCP tool annotations a definition may override; the server's default is
+ *  read-only, non-destructive, open-world. Only the Worker tools (ADR-0010)
+ *  set `readOnlyHint: false`. */
+export interface ToolAnnotations {
+  readOnlyHint: boolean;
+  destructiveHint: boolean;
+  openWorldHint?: boolean;
+}
+
 /**
  * One Curated tool: a name, a description written for the agent, zod
  * input/output schemas (the SDK derives JSON Schema from them), and `run`.
@@ -27,6 +36,8 @@ export interface ToolDefinition<I extends z.ZodObject = z.ZodObject, O extends z
   description: string;
   input: I;
   output: O;
+  /** Omitted for every read tool; a write tool must say so. */
+  annotations?: ToolAnnotations;
   run(input: z.output<I>, ctx: ToolContext): Promise<ToolOutcome<z.output<O>>>;
 }
 

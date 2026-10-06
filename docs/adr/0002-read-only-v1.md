@@ -1,5 +1,6 @@
 ---
 status: accepted
+amended-by: 0010
 ---
 
 # v1 is strictly read-only, including the raw GraphQL escape hatch
@@ -15,3 +16,8 @@ escalate events, or edit a crisis under the caller's valid API key, and
 clear-api would correctly honour it. Writes will arrive later behind their own
 flag with per-call confirmation, and get their own ADR then. Do not "fix" this
 by adding a create tool.
+
+**Amended by ADR-0010 (2026-10-06):** a Task Worker process may set
+`CLEAR_MCP_WORKER=1` to register four typed Task-write tools. Everything
+above still holds for every other Consumer, and the escape hatch still
+rejects every mutation.

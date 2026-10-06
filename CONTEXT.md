@@ -61,6 +61,21 @@ without the MCP protocol in between. Same tools, same descriptions, same results
 as the MCP server — MCP is one way of publishing them, the Tool library another.
 _Avoid_: SDK, client library, "MCP-less mode"
 
+**Worker tools**:
+The four Task writes — claim, heartbeat, complete, fail — a **Task Worker** drains
+clear-api's Task queue with. Registered only when the process sets
+`CLEAR_MCP_WORKER=1`; never a **Curated tool**, never in the **Tool library**, never
+set by an **Install channel**. The only writes clear-mcp can send (ADR-0010).
+_Avoid_: mutation tools, write mode, admin tools
+
+**Task Worker**:
+A process that claims Tasks from clear-api and completes them: the scheduled
+Claude Code routine running the ImpactPrior skill, Dagster, a third-party agent.
+Runs as clear-api's narrow `worker` role, which bounds what the **Worker tools**
+can touch. Defined in clear-api's CONTEXT.md ("Tasks and Workers"); the CLEAR
+Agent is never one.
+_Avoid_: agent, bot, enricher
+
 ## Tool groups
 
 **Orient**:
@@ -80,7 +95,7 @@ The curated tier: crises, situation analyses, aggregated datapoints, figures.
 
 - A **Consumer** authenticates as exactly one **Caller**; clear-mcp never holds
   credentials for anyone else
-- Every **Curated tool** and the **Escape hatch** is read-only in v1
+- Every **Curated tool** and the **Escape hatch** is read-only; the **Worker tools** are the one write path, under their own flag (ADR-0010)
 - The **Escape hatch** is enabled per **Consumer** by configuration, never
   by role
 - Every **Curated tool** behaves identically over MCP and through the **Tool library**

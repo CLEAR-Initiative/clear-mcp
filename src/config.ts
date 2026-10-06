@@ -26,6 +26,14 @@ export interface Config {
   locale: Locale;
   /** `CLEAR_MCP_RAW_GRAPHQL=1` registers the developer-only Escape hatch. */
   rawGraphql: boolean;
+  /**
+   * `CLEAR_MCP_WORKER=1` registers the Worker tools — the four Task writes
+   * (claim, heartbeat, complete, fail) a Task Worker drains clear-api's queue
+   * with (ADR-0010). Off by default and never set by an install channel;
+   * optional so a Tool library Consumer's `Config` is unchanged (the
+   * library never offers them).
+   */
+  worker?: boolean;
   logLevel: LogLevel;
 }
 
@@ -36,6 +44,7 @@ const envSchema = z.object({
   CLEAR_API_KEY: z.string().trim().min(1),
   CLEAR_MCP_LOCALE: z.enum(SUPPORTED_LOCALES).default("en"),
   CLEAR_MCP_RAW_GRAPHQL: z.string().optional(),
+  CLEAR_MCP_WORKER: z.string().optional(),
   CLEAR_MCP_LOG_LEVEL: z.enum(LOG_LEVELS).default("info"),
 });
 
@@ -51,7 +60,7 @@ export class ConfigError extends Error {
 }
 
 /**
- * Parse the five `CLEAR_*` environment variables into a `Config`. Missing
+ * Parse the six `CLEAR_*` environment variables into a `Config`. Missing
  * required variables are reported together, by name, so a Consumer's MCP
  * config can be fixed in one pass. Empty strings count as missing (required)
  * or unset (optional).
@@ -83,6 +92,8 @@ export function parseConfig(env: Record<string, string | undefined>): Config {
     locale: e.CLEAR_MCP_LOCALE,
     // Truthy only for the literal "1" — "true"/"yes" do not enable the hatch.
     rawGraphql: e.CLEAR_MCP_RAW_GRAPHQL === "1",
+    // Same rule: only the literal "1" turns the Worker tools on.
+    worker: e.CLEAR_MCP_WORKER === "1",
     logLevel: e.CLEAR_MCP_LOG_LEVEL,
   };
 }

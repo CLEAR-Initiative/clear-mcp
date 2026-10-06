@@ -17,6 +17,7 @@ import * as types from './graphql.js';
 type Documents = {
     "\n  query ClearLocationIndex {\n    countries: locations(level: 0) {\n      ...IndexedLocation\n    }\n    states: locations(level: 1) {\n      ...IndexedLocation\n    }\n    districts: locations(level: 2) {\n      ...IndexedLocation\n    }\n  }\n  fragment IndexedLocation on Location {\n    id\n    name\n    level\n    pCode\n    ancestorIds\n  }\n": typeof types.ClearLocationIndexDocument,
     "\n  query ClearSelfCheck {\n    me {\n      id\n      role\n      isActive\n    }\n  }\n": typeof types.ClearSelfCheckDocument,
+    "\n  mutation ClearClaimTasks($kind: String!, $limit: Int) {\n    claimTasks(kind: $kind, limit: $limit) {\n      id\n      kind\n      subjectType\n      subjectId\n      payload\n      status\n      leaseToken\n      leaseExpiresAt\n      attempts\n      maxAttempts\n      cancelRequestedAt\n      outcome\n      lastError\n      completedAt\n    }\n  }\n": typeof types.ClearClaimTasksDocument,
     "\n  query ClearCount($input: EntityStatsInput!) {\n    entityStats(input: $input) {\n      total\n      buckets {\n        key\n        count\n      }\n    }\n  }\n": typeof types.ClearCountDocument,
     "\n  query ClearListCrises {\n    crises {\n      id\n      severity\n      enrichmentStatus\n      title\n      summary\n      populationAffected\n      populationInArea\n      createdAt\n      updatedAt\n      generalLocation {\n        id\n        name\n        level\n      }\n      events {\n        id\n      }\n    }\n  }\n": typeof types.ClearListCrisesDocument,
     "\n  query ClearGetCrisis($id: String!) {\n    crisis(id: $id) {\n      id\n      severity\n      enrichmentStatus\n      title\n      summary\n      scenarios\n      needs\n      populationAffected\n      populationInArea\n      createdAt\n      updatedAt\n      generalLocation {\n        id\n        name\n        level\n      }\n      events {\n        id\n      }\n    }\n  }\n": typeof types.ClearGetCrisisDocument,
@@ -36,6 +37,7 @@ type Documents = {
 const documents: Documents = {
     "\n  query ClearLocationIndex {\n    countries: locations(level: 0) {\n      ...IndexedLocation\n    }\n    states: locations(level: 1) {\n      ...IndexedLocation\n    }\n    districts: locations(level: 2) {\n      ...IndexedLocation\n    }\n  }\n  fragment IndexedLocation on Location {\n    id\n    name\n    level\n    pCode\n    ancestorIds\n  }\n": types.ClearLocationIndexDocument,
     "\n  query ClearSelfCheck {\n    me {\n      id\n      role\n      isActive\n    }\n  }\n": types.ClearSelfCheckDocument,
+    "\n  mutation ClearClaimTasks($kind: String!, $limit: Int) {\n    claimTasks(kind: $kind, limit: $limit) {\n      id\n      kind\n      subjectType\n      subjectId\n      payload\n      status\n      leaseToken\n      leaseExpiresAt\n      attempts\n      maxAttempts\n      cancelRequestedAt\n      outcome\n      lastError\n      completedAt\n    }\n  }\n": types.ClearClaimTasksDocument,
     "\n  query ClearCount($input: EntityStatsInput!) {\n    entityStats(input: $input) {\n      total\n      buckets {\n        key\n        count\n      }\n    }\n  }\n": types.ClearCountDocument,
     "\n  query ClearListCrises {\n    crises {\n      id\n      severity\n      enrichmentStatus\n      title\n      summary\n      populationAffected\n      populationInArea\n      createdAt\n      updatedAt\n      generalLocation {\n        id\n        name\n        level\n      }\n      events {\n        id\n      }\n    }\n  }\n": types.ClearListCrisesDocument,
     "\n  query ClearGetCrisis($id: String!) {\n    crisis(id: $id) {\n      id\n      severity\n      enrichmentStatus\n      title\n      summary\n      scenarios\n      needs\n      populationAffected\n      populationInArea\n      createdAt\n      updatedAt\n      generalLocation {\n        id\n        name\n        level\n      }\n      events {\n        id\n      }\n    }\n  }\n": types.ClearGetCrisisDocument,
@@ -61,6 +63,10 @@ export function graphql(source: "\n  query ClearLocationIndex {\n    countries: 
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  query ClearSelfCheck {\n    me {\n      id\n      role\n      isActive\n    }\n  }\n"): typeof import('./graphql.js').ClearSelfCheckDocument;
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  mutation ClearClaimTasks($kind: String!, $limit: Int) {\n    claimTasks(kind: $kind, limit: $limit) {\n      id\n      kind\n      subjectType\n      subjectId\n      payload\n      status\n      leaseToken\n      leaseExpiresAt\n      attempts\n      maxAttempts\n      cancelRequestedAt\n      outcome\n      lastError\n      completedAt\n    }\n  }\n"): typeof import('./graphql.js').ClearClaimTasksDocument;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

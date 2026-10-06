@@ -201,6 +201,18 @@ export type StatsGroupBy =
   | 'type'
   | 'week';
 
+/**
+ * Lifecycle of a Task. PENDING → LEASED (claimed) → COMPLETED | FAILED;
+ * PENDING or LEASED → CANCELLED. An expired lease returns the Task to
+ * PENDING lazily, at the next claim. Tasks are never deleted.
+ */
+export type TaskStatus =
+  | 'CANCELLED'
+  | 'COMPLETED'
+  | 'FAILED'
+  | 'LEASED'
+  | 'PENDING';
+
 export type ClearLocationIndexQueryVariables = Exact<{ [key: string]: never; }>;
 
 
@@ -212,6 +224,14 @@ export type ClearSelfCheckQueryVariables = Exact<{ [key: string]: never; }>;
 
 
 export type ClearSelfCheckQuery = { me: { id: string, role: string | null, isActive: boolean | null } | null };
+
+export type ClearClaimTasksMutationVariables = Exact<{
+  kind: string;
+  limit?: number | null | undefined;
+}>;
+
+
+export type ClearClaimTasksMutation = { claimTasks: Array<{ id: string, kind: string, subjectType: string, subjectId: string, payload: unknown, status: TaskStatus, leaseToken: string | null, leaseExpiresAt: string | null, attempts: number, maxAttempts: number, cancelRequestedAt: string | null, outcome: string | null, lastError: string | null, completedAt: string | null }> };
 
 export type ClearCountQueryVariables = Exact<{
   input: EntityStatsInput;
@@ -406,6 +426,26 @@ export const ClearSelfCheckDocument = new TypedDocumentString(`
   }
 }
     `) as unknown as TypedDocumentString<ClearSelfCheckQuery, ClearSelfCheckQueryVariables>;
+export const ClearClaimTasksDocument = new TypedDocumentString(`
+    mutation ClearClaimTasks($kind: String!, $limit: Int) {
+  claimTasks(kind: $kind, limit: $limit) {
+    id
+    kind
+    subjectType
+    subjectId
+    payload
+    status
+    leaseToken
+    leaseExpiresAt
+    attempts
+    maxAttempts
+    cancelRequestedAt
+    outcome
+    lastError
+    completedAt
+  }
+}
+    `) as unknown as TypedDocumentString<ClearClaimTasksMutation, ClearClaimTasksMutationVariables>;
 export const ClearCountDocument = new TypedDocumentString(`
     query ClearCount($input: EntityStatsInput!) {
   entityStats(input: $input) {
