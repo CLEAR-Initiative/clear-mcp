@@ -1,6 +1,6 @@
 {
   "name": "@clear-initiative/mcp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Model Context Protocol server exposing CLEAR's humanitarian data (via clear-api) to AI agents",
   "keywords": [
     "mcp",
