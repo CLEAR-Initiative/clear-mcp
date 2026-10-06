@@ -59,6 +59,7 @@
     "./skills/clear-analysis-scope",
     "./skills/clear-situation-analysis",
     "./skills/clear-sitrep",
-    "./skills/clear-weekly-brief"
+    "./skills/clear-weekly-brief",
+    "./skills/clear-impact-prior"
   ]
 }

@@ -6,7 +6,8 @@ are files (the Claude Code plugin — which also installs the server — the npm
 than something served over the MCP connection;
 the top-level [README](../README.md#skills) has the install commands.
 
-Three skills teach the tools; four are workflows over them, drawn from the Situation analysis PRD.
+Three skills teach the tools; four are workflows over them, drawn from the Situation analysis PRD;
+one is a Worker procedure that runs only in a Worker process (ADR-0010).
 
 | Skill | Use it when | Core rules |
 |---|---|---|
@@ -17,6 +18,7 @@ Three skills teach the tools; four are workflows over them, drawn from the Situa
 | [`clear-situation-analysis`](clear-situation-analysis/SKILL.md) | An overview of a place or a crisis picture | Fixed section order; header + summary + key figures eagerly, the rest on request; stale = older than cadence or a new alert since `generatedAt`; alerts list below country only |
 | [`clear-sitrep`](clear-sitrep/SKILL.md) | A sitrep, a frozen or shareable analysis, or a correction to one | Freeze what is on screen; never edit a published one — a correction is a new version naming the old; response activities only from what the user supplies |
 | [`clear-weekly-brief`](clear-weekly-brief/SKILL.md) | The weekly operational brief per area of operation | One created scope per area, same `from`/`to` everywhere; advisories are DRAFT for a named owner; no contact details, ever |
+| [`clear-impact-prior`](clear-impact-prior/SKILL.md) | A Worker process draining `event.impact_prior` Tasks (`CLEAR_MCP_WORKER=1`, worker-role key) | One Task at a time; heartbeat every ~5 min; CLEAR Events and knowledge base before the web; a case shares the Event's hazard and country, inside the horizon, with a citation; zero cases is `no_prior_found`, not a failure; never decide, never write anything but the Task |
 
 ## Writing another one
 
