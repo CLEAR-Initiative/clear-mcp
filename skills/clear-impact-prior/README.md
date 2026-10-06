@@ -61,8 +61,7 @@ prompt:
 
 > Run the `clear-impact-prior` skill once: claim at most one `event.impact_prior` Task from
 > CLEAR and finish it. If nothing is waiting, say so and stop. Report the Task id, the outcome
-> (produced / no_prior_found / failed / cancelled), the number of cases, and the usage you
-> reported.
+> (produced / no_prior_found / failed / cancelled) and the number of cases.
 
 Sizing: a Task takes 5–12 minutes of research; the lease is 15 minutes and the skill
 heartbeats every ~5. Two overlapping runs cannot collide on a Task — the lease token
@@ -74,7 +73,8 @@ queue; the platform-wide claim cap arrives in V3 once Dagster reports real cost.
 
 - `clear_whoami` in the routine's transcript shows `workerEnabled: true` and role `worker`.
 - In clear-api, the Event's page shows the Task COMPLETED and, with cases, a `proposed`
-  ImpactPrior beside it; `eventTasks` shows `model` / `costUsd` on the Task.
+  ImpactPrior beside it. `model` / `costUsd` stay empty on the Task: the routine cannot
+  measure its own usage, so it does not report any (take spend from the routine's billing).
 - A FAILED Task's `lastError` is readable by the requester; fix the cause before retrying by
   hand — the queue retries three times on its own.
 

@@ -97,7 +97,6 @@ Count the cases that survived the rules. `basis` lists exactly one entry per cas
 clear_complete_task(
   id, leaseToken,
   result: { searched: [...], candidates: <n>, excluded: [{ id|url, reason }...], notes },
-  usage: { model, inputTokens, outputTokens, costUsd },
   impactPrior: {
     hazardType: <one of the Event's types>,
     countryLocationId: <level-0 id>,
@@ -109,6 +108,9 @@ clear_complete_task(
   }
 )
 ```
+
+Omit `usage`: you cannot see your own token counts or cost, and a guessed figure would be
+stored as real spend. A Worker that can measure them (Dagster) reports them; you do not.
 
 Leave `populationGroup`, `metric`, `lowerBound`, `upperBound` out unless the cases give a
 defensible figure; the quantitative fields are optional in this version.
