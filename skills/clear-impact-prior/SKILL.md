@@ -46,6 +46,9 @@ each research step is a good rhythm. Read the result's `task.status`:
   complete or fail it.
 - An error `FORBIDDEN` / `NOT_LEASE_OWNER` → your lease lapsed and another run took the Task.
   Stop; do not complete it; your `leaseToken` is dead.
+- An error `CONFLICT` / `NOT_LEASED` → the Task is no longer LEASED at all: it was failed,
+  completed or cancelled elsewhere (for example a lapsed lease swept at another run's claim).
+  Stop; do not call `clear_fail_task` on it — that would CONFLICT too.
 
 ### 3. Read the Event
 

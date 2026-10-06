@@ -32,6 +32,10 @@ export const COMPLETE_TASK_DOCUMENT = graphql(/* GraphQL */ `
   }
 `);
 
+/** A date clear-api's DateTime scalar can parse; anything else must fail here as
+ *  BAD_USER_INPUT rather than deep inside clear-api's transaction. */
+const isoDate = z.string().refine((s) => !Number.isNaN(Date.parse(s)), "must be an ISO-8601 date");
+
 /** One case in an ImpactPrior's evidence basis — the shape clear-api stores verbatim. */
 export const impactPriorCase = z.object({
   tier: z.enum(["clear", "web"]).describe("`clear` for a CLEAR Event or knowledge-base passage, `web` for an external source."),
@@ -56,8 +60,8 @@ export const impactPriorInput = z.object({
   upperBound: z.number().optional(),
   numberOfCases: z.number().int().min(1).describe("Must equal the length of `basis`."),
   basis: z.array(impactPriorCase).min(1).describe("One entry per case."),
-  validFrom: z.string().optional(),
-  validTo: z.string().optional(),
+  validFrom: isoDate.optional().describe("ISO-8601 instant the prior is valid from."),
+  validTo: isoDate.optional().describe("ISO-8601 instant the prior is valid to."),
   methodVersion: z.string().min(1).describe("The skill's version string, e.g. `clear-impact-prior@0.1.0`."),
 });
 
@@ -79,7 +83,8 @@ export const completeTaskTool = defineTool({
     "country its level-0 ancestor, one basis entry per case) and answers BAD_USER_INPUT with " +
     "the reason if it does not fit — fix the proposal, do not fail the Task. Only the lease " +
     "owner, only while LEASED; CANCELLED in the result means the requester withdrew it and " +
-    "your result was discarded.",
+    "your result was discarded. CONFLICT / NOT_LEASED means the Task is no longer yours " +
+    "(completed, failed or cancelled elsewhere): stop, do not retry.",
   input: z.object({
     id: z.string().trim().min(1).describe("The Task id from clear_claim_tasks."),
     leaseToken: leaseTokenInput,

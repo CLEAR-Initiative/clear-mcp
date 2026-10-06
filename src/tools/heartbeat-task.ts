@@ -31,8 +31,9 @@ export const heartbeatTaskTool = defineTool({
     "WORKER TOOL (write). Keep a claimed Task's lease alive: extends `leaseExpiresAt` by " +
     "TASK_LEASE_MINUTES from now. Call it about every 5 minutes while working. Read `status` " +
     "in the result: CANCELLED means the requester withdrew the Task — stop and discard your " +
-    "work. FORBIDDEN / NOT_LEASE_OWNER means the lease lapsed and was reclaimed; stop and do " +
-    "not complete it. Only the lease owner, only while LEASED.",
+    "work. FORBIDDEN / NOT_LEASE_OWNER means the lease lapsed and was reclaimed; CONFLICT / " +
+    "NOT_LEASED means the Task is no longer LEASED at all (failed, completed or cancelled " +
+    "elsewhere). In both cases stop and do not complete it. Only the lease owner, only while LEASED.",
   input: z.object({
     id: z.string().trim().min(1).describe("The Task id from clear_claim_tasks."),
     leaseToken: leaseTokenInput,

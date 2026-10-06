@@ -106,12 +106,13 @@ describe("Worker task writes", () => {
     expect(seam.requests[0]!.variables).toEqual({ id: "task-1", leaseToken: TOKEN, result: { cases: 0 } });
   });
 
-  it("clear_complete_task rejects a malformed proposal locally — zero cases, a bad scope, a bad tier", async () => {
+  it("clear_complete_task rejects a malformed proposal locally — zero cases, a bad scope, a bad tier, a bad date", async () => {
     seam = await connect({ env: WORKER_ENV });
     for (const impactPrior of [
       { ...PROPOSAL, numberOfCases: 0, basis: [] },
       { ...PROPOSAL, geographicScope: "continent" },
       { ...PROPOSAL, basis: [{ tier: "rumour", scope: "country" }] },
+      { ...PROPOSAL, validFrom: "last spring" },
     ]) {
       // The SDK rejects it against the input schema before `run` (an MCP-level
       // error text, not our JSON value) — either way nothing reaches clear-api.
@@ -122,7 +123,8 @@ describe("Worker task writes", () => {
   });
 
   it("clear_fail_task forwards the error and returns the Task's new status", async () => {
-    const retry = { ...TASK, status: "PENDING", leaseToken: null, leaseExpiresAt: null, lastError: "model timed out" };
+    // lastError is redacted for a worker (requester and admins only), so the real response carries null.
+    const retry = { ...TASK, status: "PENDING", leaseToken: null, leaseExpiresAt: null, lastError: null };
     seam = await connect({ env: WORKER_ENV, fixtures: { ClearFailTask: { data: { failTask: retry } } } });
     const result = await seam.callTool("clear_fail_task", { id: "task-1", leaseToken: TOKEN, error: "model timed out" });
     expect(result.isError).toBeFalsy();
