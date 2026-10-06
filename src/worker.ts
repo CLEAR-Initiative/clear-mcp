@@ -1,4 +1,7 @@
 import { claimTasksTool } from "./tools/claim-tasks.js";
+import { completeTaskTool } from "./tools/complete-task.js";
+import { failTaskTool } from "./tools/fail-task.js";
+import { heartbeatTaskTool } from "./tools/heartbeat-task.js";
 import type { ToolDefinition } from "./tools/types.js";
 
 /**
@@ -10,4 +13,4 @@ import type { ToolDefinition } from "./tools/types.js";
  * write path, and the Caller's `worker` role in clear-api bounds what they
  * can touch (Tasks it holds; `proposed` ImpactPriors a person must accept).
  */
-export const workerTools: ToolDefinition[] = [claimTasksTool];
+export const workerTools: ToolDefinition[] = [claimTasksTool, heartbeatTaskTool, completeTaskTool, failTaskTool];

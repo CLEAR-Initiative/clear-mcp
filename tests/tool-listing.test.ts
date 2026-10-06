@@ -26,7 +26,7 @@ export const CURATED_TOOLS = [
 ];
 
 /** The Task Worker's write tools (ADR-0010), registered only under CLEAR_MCP_WORKER=1. */
-export const WORKER_TOOLS = ["clear_claim_tasks"];
+export const WORKER_TOOLS = ["clear_claim_tasks", "clear_heartbeat_task", "clear_complete_task", "clear_fail_task"];
 
 describe("tools/list", () => {
   let seam: Seam;
