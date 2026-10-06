@@ -32,9 +32,11 @@ export const COMPLETE_TASK_DOCUMENT = graphql(/* GraphQL */ `
   }
 `);
 
-/** A date clear-api's DateTime scalar can parse; anything else must fail here as
- *  BAD_USER_INPUT rather than deep inside clear-api's transaction. */
-const isoDate = z.string().refine((s) => !Number.isNaN(Date.parse(s)), "must be an ISO-8601 date");
+/** A full RFC 3339 date-time, the only form clear-api's DateTime scalar (passed to
+ *  Prisma unparsed) accepts; anything else — a date-only "2020-01-01", "March 2020",
+ *  an impossible "2020-02-30" — must fail here as BAD_USER_INPUT rather than deep
+ *  inside clear-api's transaction. `Date.parse` is too lenient for this. */
+const isoDate = z.iso.datetime({ offset: true });
 
 /** One case in an ImpactPrior's evidence basis — the shape clear-api stores verbatim. */
 export const impactPriorCase = z.object({
@@ -60,8 +62,8 @@ export const impactPriorInput = z.object({
   upperBound: z.number().optional(),
   numberOfCases: z.number().int().min(1).describe("Must equal the length of `basis`."),
   basis: z.array(impactPriorCase).min(1).describe("One entry per case."),
-  validFrom: isoDate.optional().describe("ISO-8601 instant the prior is valid from."),
-  validTo: isoDate.optional().describe("ISO-8601 instant the prior is valid to."),
+  validFrom: isoDate.optional().describe("ISO-8601 date-time the prior is valid from, e.g. `2020-01-01T00:00:00Z`."),
+  validTo: isoDate.optional().describe("ISO-8601 date-time the prior is valid to, e.g. `2030-01-01T00:00:00Z`."),
   methodVersion: z.string().min(1).describe("The skill's version string, e.g. `clear-impact-prior@0.1.0`."),
 });
 

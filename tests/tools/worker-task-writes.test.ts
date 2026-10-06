@@ -113,6 +113,9 @@ describe("Worker task writes", () => {
       { ...PROPOSAL, geographicScope: "continent" },
       { ...PROPOSAL, basis: [{ tier: "rumour", scope: "country" }] },
       { ...PROPOSAL, validFrom: "last spring" },
+      // Date.parse accepts these; clear-api's Prisma layer does not.
+      { ...PROPOSAL, validFrom: "2020-01-01" },
+      { ...PROPOSAL, validTo: "2020-02-30T00:00:00Z" },
     ]) {
       // The SDK rejects it against the input schema before `run` (an MCP-level
       // error text, not our JSON value) — either way nothing reaches clear-api.
