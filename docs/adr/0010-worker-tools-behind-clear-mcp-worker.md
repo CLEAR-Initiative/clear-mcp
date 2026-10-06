@@ -23,13 +23,23 @@ for every other Consumer. The escape hatch still rejects any `mutation` or
 `subscription` before a network call; these four documents are the only
 writes clear-mcp can ever send, and each is pinned to the schema snapshot.
 
-The compensating control for an unattended, prompt-injectable Worker is not
-in clear-mcp at all: the Caller runs as clear-api's narrow `worker` role,
-which can write nothing but Tasks it holds the lease on (each write carries a
-per-claim `leaseToken`) and ImpactPriors in state `proposed`, which a named
-analyst or admin must accept before they count. An injected instruction can
-at worst waste a Task; it cannot touch Signals, Events, Alerts or Crises, and
-it cannot promote its own output.
+The compensating control for an unattended, prompt-injectable Worker comes
+in two layers. In clear-mcp, the four typed documents above are the only
+writes the process can send: through its tools an injected instruction can at
+worst waste a Task, and it cannot promote its own output — the Task writes
+carry a per-claim `leaseToken`, and an ImpactPrior lands as `proposed`, which
+a named analyst or admin must accept before it counts. In clear-api, the
+Caller runs as the narrow `worker` role, which bounds the **key** wherever it
+is used. As of clear-api PR #190 that bound is wider than the tools: the
+`worker` role is an approved content reader, so besides its Task writes it
+can still call `addComment` / `replyToComment` (on Events, Signals and
+Crises, tagging users), `addFeedback`, and `createApiKey` — none of which
+clear-mcp ever sends. A Worker runtime that can read its own MCP config (a
+Claude Code routine with a shell, say) could reach them with the key
+directly, so until clear-api refuses `worker` on those mutations, treat a
+leaked worker key as able to comment on content and mint further keys:
+rotate by deactivating the worker user or revoking **every** key it holds,
+never one key.
 
 ## Considered options
 

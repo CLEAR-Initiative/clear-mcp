@@ -247,8 +247,10 @@ They are the only writes clear-mcp can send, each a typed document pinned to the
 hatch still rejects every mutation. A Worker claims Tasks of a kind (first: `event.impact_prior`),
 keeps each lease alive by heartbeat, and completes with a proposal — or fails with an error — using
 the per-claim `leaseToken` the claim returned. The process must run with a key of clear-api's
-narrow `worker` role (`scripts/create-worker-user.ts` there), which bounds what the tools can
-touch: Tasks it holds, and ImpactPriors in state `proposed` that a named analyst must accept. The
+narrow `worker` role (`scripts/create-worker-user.ts` there). Through these tools it writes only
+Tasks it holds, and ImpactPriors in state `proposed` that a named analyst must accept; the role
+itself can do a little more with the key used directly (comments, feedback, minting keys — see
+ADR-0010), so keep the key out of the Worker's reach and revoke all of its keys to roll back. The
 `clear-impact-prior` skill is the procedure. Never set the flag for an analyst's or developer's
 client; no install channel does. `clear_whoami` reports it as `workerEnabled`.
 

@@ -13,8 +13,10 @@ bun run scripts/create-worker-user.ts            # prints a sk_live_… key ONCE
 bun run scripts/create-worker-user.ts --new-key  # rotate later
 ```
 
-The `worker` role can read content and write only Tasks it holds and `proposed`
-ImpactPriors; it cannot touch Signals, Events, Alerts or Crises. One identity per Worker
+Through clear-mcp the `worker` key writes only Tasks it holds and `proposed` ImpactPriors.
+The role itself is wider (ADR-0010): used directly, the key can also comment on and leave
+feedback on Events, Signals and Crises, and mint further API keys. Keep it out of anything
+the routine can print or read back, and see section 5 for revoking it. One identity per Worker
 deployment is the rule; two routines in parallel are fine with one identity because every
 claim mints its own `leaseToken`.
 
@@ -79,5 +81,6 @@ queue; the platform-wide claim cap arrives in V3 once Dagster reports real cost.
 ## 5. Rolling back
 
 Unset `CLEAR_MCP_WORKER` (or pause the schedule). Tasks already LEASED lapse after 15
-minutes and return to the pool; nothing is lost. Revoke the worker key in clear-api's
-Developer Portal to stop a compromised routine outright.
+minutes and return to the pool; nothing is lost. To stop a compromised routine outright,
+deactivate the worker user in clear-api, or revoke **every** API key it holds — a
+compromised key can have minted others, so revoking the one in this file is not enough.
