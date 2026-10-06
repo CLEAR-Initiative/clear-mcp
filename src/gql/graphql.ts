@@ -116,6 +116,31 @@ export type EventsPageInput = {
 };
 
 /**
+ * An ImpactPrior proposal, given by a Worker on completing an
+ * `event.impact_prior` Task with at least one case. Omit it entirely to
+ * record `no_prior_found`.
+ */
+export type ImpactPriorInput = {
+  /** One entry per case; see `ImpactPrior.basis`. */
+  basis: unknown;
+  /** Must be the level-0 ancestor of the Event's primary location. */
+  countryLocationId: string;
+  /** `district` or `country`. */
+  geographicScope: string;
+  /** Must be one of the Event's `types`. */
+  hazardType: string;
+  horizonYears: number;
+  lowerBound?: number | null | undefined;
+  methodVersion: string;
+  metric?: string | null | undefined;
+  numberOfCases: number;
+  populationGroup?: string | null | undefined;
+  upperBound?: number | null | undefined;
+  validFrom?: string | null | undefined;
+  validTo?: string | null | undefined;
+};
+
+/**
  * Optional filters applied BEFORE the retrieval step — array
  * filters use overlap semantics (any-of), the time range uses
  * inclusive intersection. Leave a field null to skip that filter.
@@ -201,6 +226,29 @@ export type StatsGroupBy =
   | 'type'
   | 'week';
 
+/**
+ * Lifecycle of a Task. PENDING → LEASED (claimed) → COMPLETED | FAILED;
+ * PENDING or LEASED → CANCELLED. An expired lease returns the Task to
+ * PENDING lazily, at the next claim. Tasks are never deleted.
+ */
+export type TaskStatus =
+  | 'CANCELLED'
+  | 'COMPLETED'
+  | 'FAILED'
+  | 'LEASED'
+  | 'PENDING';
+
+/**
+ * Spend a Worker reports when completing a Task. Cost is computed by the
+ * caller from its own price table.
+ */
+export type TaskUsageInput = {
+  costUsd: number;
+  inputTokens: number;
+  model: string;
+  outputTokens: number;
+};
+
 export type ClearLocationIndexQueryVariables = Exact<{ [key: string]: never; }>;
 
 
@@ -212,6 +260,25 @@ export type ClearSelfCheckQueryVariables = Exact<{ [key: string]: never; }>;
 
 
 export type ClearSelfCheckQuery = { me: { id: string, role: string | null, isActive: boolean | null } | null };
+
+export type ClearClaimTasksMutationVariables = Exact<{
+  kind: string;
+  limit?: number | null | undefined;
+}>;
+
+
+export type ClearClaimTasksMutation = { claimTasks: Array<{ id: string, kind: string, subjectType: string, subjectId: string, payload: unknown, status: TaskStatus, leaseToken: string | null, leaseExpiresAt: string | null, attempts: number, maxAttempts: number, cancelRequestedAt: string | null, outcome: string | null, lastError: string | null, completedAt: string | null }> };
+
+export type ClearCompleteTaskMutationVariables = Exact<{
+  id: string;
+  leaseToken: string;
+  result: unknown;
+  usage?: TaskUsageInput | null | undefined;
+  impactPrior?: ImpactPriorInput | null | undefined;
+}>;
+
+
+export type ClearCompleteTaskMutation = { completeTask: { id: string, kind: string, subjectType: string, subjectId: string, payload: unknown, status: TaskStatus, leaseToken: string | null, leaseExpiresAt: string | null, attempts: number, maxAttempts: number, cancelRequestedAt: string | null, outcome: string | null, lastError: string | null, completedAt: string | null } };
 
 export type ClearCountQueryVariables = Exact<{
   input: EntityStatsInput;
@@ -231,6 +298,15 @@ export type ClearGetCrisisQueryVariables = Exact<{
 
 
 export type ClearGetCrisisQuery = { crisis: { id: string, severity: number, enrichmentStatus: CrisisEnrichmentStatus, title: string | null, summary: string | null, scenarios: unknown, needs: unknown, populationAffected: string | null, populationInArea: string | null, createdAt: string, updatedAt: string, generalLocation: { id: string, name: string, level: number } | null, events: Array<{ id: string }> } | null };
+
+export type ClearFailTaskMutationVariables = Exact<{
+  id: string;
+  leaseToken: string;
+  error: string;
+}>;
+
+
+export type ClearFailTaskMutation = { failTask: { id: string, kind: string, subjectType: string, subjectId: string, payload: unknown, status: TaskStatus, leaseToken: string | null, leaseExpiresAt: string | null, attempts: number, maxAttempts: number, cancelRequestedAt: string | null, outcome: string | null, lastError: string | null, completedAt: string | null } };
 
 export type ClearGetAlertQueryVariables = Exact<{
   id: string;
@@ -264,6 +340,14 @@ export type ClearGetSignalQueryVariables = Exact<{
 
 
 export type ClearGetSignalQuery = { signal: { id: string, status: SignalStatus, publishedAt: string, collectedAt: string, processedAt: string | null, severity: number | null, casualties: number | null, url: string | null, externalId: string | null, isDummy: boolean, title: string | null, description: string | null, source: { name: string, type: string, reliability: number | null }, originLocation: { id: string, name: string, level: number } | null, destinationLocation: { id: string, name: string, level: number } | null, generalLocation: { id: string, name: string, level: number } | null, events: Array<{ id: string }> } | null };
+
+export type ClearHeartbeatTaskMutationVariables = Exact<{
+  id: string;
+  leaseToken: string;
+}>;
+
+
+export type ClearHeartbeatTaskMutation = { heartbeatTask: { id: string, kind: string, subjectType: string, subjectId: string, payload: unknown, status: TaskStatus, leaseToken: string | null, leaseExpiresAt: string | null, attempts: number, maxAttempts: number, cancelRequestedAt: string | null, outcome: string | null, lastError: string | null, completedAt: string | null } };
 
 export type ClearListAlertsQueryVariables = Exact<{
   input?: AlertsPageInput | null | undefined;
@@ -406,6 +490,52 @@ export const ClearSelfCheckDocument = new TypedDocumentString(`
   }
 }
     `) as unknown as TypedDocumentString<ClearSelfCheckQuery, ClearSelfCheckQueryVariables>;
+export const ClearClaimTasksDocument = new TypedDocumentString(`
+    mutation ClearClaimTasks($kind: String!, $limit: Int) {
+  claimTasks(kind: $kind, limit: $limit) {
+    id
+    kind
+    subjectType
+    subjectId
+    payload
+    status
+    leaseToken
+    leaseExpiresAt
+    attempts
+    maxAttempts
+    cancelRequestedAt
+    outcome
+    lastError
+    completedAt
+  }
+}
+    `) as unknown as TypedDocumentString<ClearClaimTasksMutation, ClearClaimTasksMutationVariables>;
+export const ClearCompleteTaskDocument = new TypedDocumentString(`
+    mutation ClearCompleteTask($id: String!, $leaseToken: String!, $result: JSON!, $usage: TaskUsageInput, $impactPrior: ImpactPriorInput) {
+  completeTask(
+    id: $id
+    leaseToken: $leaseToken
+    result: $result
+    usage: $usage
+    impactPrior: $impactPrior
+  ) {
+    id
+    kind
+    subjectType
+    subjectId
+    payload
+    status
+    leaseToken
+    leaseExpiresAt
+    attempts
+    maxAttempts
+    cancelRequestedAt
+    outcome
+    lastError
+    completedAt
+  }
+}
+    `) as unknown as TypedDocumentString<ClearCompleteTaskMutation, ClearCompleteTaskMutationVariables>;
 export const ClearCountDocument = new TypedDocumentString(`
     query ClearCount($input: EntityStatsInput!) {
   entityStats(input: $input) {
@@ -465,6 +595,26 @@ export const ClearGetCrisisDocument = new TypedDocumentString(`
   }
 }
     `) as unknown as TypedDocumentString<ClearGetCrisisQuery, ClearGetCrisisQueryVariables>;
+export const ClearFailTaskDocument = new TypedDocumentString(`
+    mutation ClearFailTask($id: String!, $leaseToken: String!, $error: String!) {
+  failTask(id: $id, leaseToken: $leaseToken, error: $error) {
+    id
+    kind
+    subjectType
+    subjectId
+    payload
+    status
+    leaseToken
+    leaseExpiresAt
+    attempts
+    maxAttempts
+    cancelRequestedAt
+    outcome
+    lastError
+    completedAt
+  }
+}
+    `) as unknown as TypedDocumentString<ClearFailTaskMutation, ClearFailTaskMutationVariables>;
 export const ClearGetAlertDocument = new TypedDocumentString(`
     query ClearGetAlert($id: String!) {
   alert(id: $id) {
@@ -613,6 +763,26 @@ export const ClearGetSignalDocument = new TypedDocumentString(`
   }
 }
     `) as unknown as TypedDocumentString<ClearGetSignalQuery, ClearGetSignalQueryVariables>;
+export const ClearHeartbeatTaskDocument = new TypedDocumentString(`
+    mutation ClearHeartbeatTask($id: String!, $leaseToken: String!) {
+  heartbeatTask(id: $id, leaseToken: $leaseToken) {
+    id
+    kind
+    subjectType
+    subjectId
+    payload
+    status
+    leaseToken
+    leaseExpiresAt
+    attempts
+    maxAttempts
+    cancelRequestedAt
+    outcome
+    lastError
+    completedAt
+  }
+}
+    `) as unknown as TypedDocumentString<ClearHeartbeatTaskMutation, ClearHeartbeatTaskMutationVariables>;
 export const ClearListAlertsDocument = new TypedDocumentString(`
     query ClearListAlerts($input: AlertsPageInput) {
   alertsPage(input: $input) {

@@ -46,8 +46,9 @@ export const whoamiTool = defineTool({
     "Who am I in CLEAR? Returns the identity the configured credential resolves to (id, role, " +
     "language), the teams the caller belongs to with their scope locations (a `teamId` " +
     "narrows Monitor tools to that scope; empty `locations` means global), the locale " +
-    "requests are pinned to, whether the raw GraphQL escape hatch is enabled, and the " +
-    "clear-api URL in use. Call this first to learn your scope and to diagnose auth problems.",
+    "requests are pinned to, whether the raw GraphQL escape hatch and the Worker tools are " +
+    "enabled in this process, and the clear-api URL in use. Call this first to learn your " +
+    "scope and to diagnose auth problems.",
   input: z.object({}),
   output: z.object({
     caller: z.object({
@@ -68,6 +69,7 @@ export const whoamiTool = defineTool({
     ),
     locale: z.string(),
     escapeHatchEnabled: z.boolean(),
+    workerEnabled: z.boolean().describe("True when CLEAR_MCP_WORKER=1 registered the Task Worker tools."),
     apiUrl: z.string(),
   }),
   async run(_input, ctx) {
@@ -99,6 +101,7 @@ export const whoamiTool = defineTool({
       })),
       locale: ctx.config.locale,
       escapeHatchEnabled: ctx.config.rawGraphql,
+      workerEnabled: ctx.config.worker === true,
       apiUrl: ctx.config.apiUrl,
     });
   },

@@ -11,6 +11,7 @@ import { THIRD_PARTY_CONTENT_RULE } from "./tools/shared.js";
 import { runTool, type ToolContext, type ToolDefinition } from "./tools/types.js";
 import { createUpstream, type FetchLike, type Upstream } from "./upstream.js";
 import { VERSION } from "./version.js";
+import { workerTools } from "./worker.js";
 
 export interface CreateServerOptions {
   config: Config;
@@ -67,7 +68,12 @@ export function createServer(opts: CreateServerOptions): ClearMcpServer {
       capabilities: { tools: {} },
       instructions:
         "Read-only access to CLEAR humanitarian data via clear-api. Start with clear_whoami to " +
-        `learn your scope. ${THIRD_PARTY_CONTENT_RULE}`,
+        `learn your scope. ${THIRD_PARTY_CONTENT_RULE}` +
+        (config.worker
+          ? " Worker tools (clear_claim_tasks, clear_heartbeat_task, clear_complete_task, " +
+            "clear_fail_task) are enabled in this process: it may claim and complete Tasks it holds, " +
+            "nothing else."
+          : ""),
     },
   );
 
@@ -80,6 +86,16 @@ export function createServer(opts: CreateServerOptions): ClearMcpServer {
   if (config.rawGraphql) {
     log.warn("raw GraphQL escape hatch enabled (CLEAR_MCP_RAW_GRAPHQL=1)");
     for (const tool of escapeHatchTools) {
+      registerCuratedTool(server, tool, { config, upstream, log });
+    }
+  }
+  // The Worker tools are the one write path (ADR-0010 amending ADR-0002):
+  // a configuration choice for a Worker process, never a role, and never
+  // set by an install channel. The Caller's narrow `worker` role in
+  // clear-api is the real boundary.
+  if (config.worker) {
+    log.warn("Worker tools enabled (CLEAR_MCP_WORKER=1): this process can claim and complete Tasks");
+    for (const tool of workerTools) {
       registerCuratedTool(server, tool, { config, upstream, log });
     }
   }
@@ -130,7 +146,7 @@ function registerCuratedTool(
       description: tool.description,
       inputSchema: tool.input.shape,
       outputSchema: tool.output.shape,
-      annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
+      annotations: { openWorldHint: true, ...(tool.annotations ?? { readOnlyHint: true, destructiveHint: false }) },
     },
     // The SDK validates `args` against inputSchema first; runTool's own parse
     // is the same path a Tool library Consumer takes (and applies defaults).

@@ -36,6 +36,7 @@ export const TEST_CONFIG: Config = {
   credential: { kind: "apiKey", key: TEST_ENV.CLEAR_API_KEY },
   locale: "en",
   rawGraphql: false,
+  worker: false,
   logLevel: "silent",
 };
 

@@ -46,6 +46,7 @@ describe("clear_whoami", () => {
       teams: TEAMS,
       locale: "en",
       escapeHatchEnabled: false,
+      workerEnabled: false,
       apiUrl: "https://api.clear.test",
     });
     // The text block carries the same JSON.
@@ -61,6 +62,7 @@ describe("clear_whoami", () => {
     expect(result.isError).toBeFalsy();
     expect((result.structuredContent as { locale: string }).locale).toBe("fr");
     expect((result.structuredContent as { escapeHatchEnabled: boolean }).escapeHatchEnabled).toBe(true);
+    expect((result.structuredContent as { workerEnabled: boolean }).workerEnabled).toBe(false);
 
     expect(seam.requests).toHaveLength(1);
     const req = seam.requests[0]!;
@@ -73,6 +75,12 @@ describe("clear_whoami", () => {
     expect(req.operationName).toBe("ClearWhoami");
     // Never select PII or geometry.
     expect(req.query).not.toMatch(/\bemail\b|\bgeometry\b/);
+  });
+
+  it("reports workerEnabled when CLEAR_MCP_WORKER=1", async () => {
+    seam = await connect({ env: { CLEAR_MCP_WORKER: "1" }, fixtures: { ClearWhoami: { data: { me: ME, myTeams: [] } } } });
+    const result = await seam.callTool("clear_whoami");
+    expect(result.structuredContent).toMatchObject({ workerEnabled: true, escapeHatchEnabled: false });
   });
 
   it("relays an UNAUTHENTICATED GraphQL error as isError with the code preserved", async () => {

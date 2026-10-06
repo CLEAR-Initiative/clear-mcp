@@ -107,6 +107,7 @@ them yourself.
 | `CLEAR_API_KEY` | yes | — | Your `sk_live_…` key; the only credential the server holds |
 | `CLEAR_MCP_LOCALE` | no | `en` | Sent as `x-force-locale`; one of `en`, `ar`, `fr`, `es` |
 | `CLEAR_MCP_RAW_GRAPHQL` | no | unset | `1` enables the developer-only raw GraphQL escape hatch |
+| `CLEAR_MCP_WORKER` | no | unset | `1` registers the four Task Worker tools (claim, heartbeat, complete, fail) — for a Worker process only, see [Worker tools](#worker-tools) |
 | `CLEAR_MCP_LOG_LEVEL` | no | `info` | pino level; logs go to stderr only |
 
 Missing `CLEAR_API_URL` or `CLEAR_API_KEY` exits 1 with the variable named on stderr. An optional
@@ -236,7 +237,24 @@ the root `Query` fields). Even here nothing but `query` operations ever reach cl
 `mutation` or `subscription`, or any document the snapshot does not validate, is rejected before
 any network call. Leave it off for non-developer consumers.
 
-All tools are read-only. Every result is JSON, both as a text block and as `structuredContent`.
+### Worker tools
+
+With `CLEAR_MCP_WORKER=1` four more tools appear — `clear_claim_tasks`, `clear_heartbeat_task`,
+`clear_complete_task` and `clear_fail_task` — the Task Worker protocol over clear-api's generic
+Task queue ([clear-api ADR-0010](../clear-api/docs/adr/0010-generic-task-queue-for-heterogeneous-workers.md)).
+They are the only writes clear-mcp can send, each a typed document pinned to the schema snapshot
+([ADR-0010](docs/adr/0010-worker-tools-behind-clear-mcp-worker.md) amending ADR-0002); the escape
+hatch still rejects every mutation. A Worker claims Tasks of a kind (first: `event.impact_prior`),
+keeps each lease alive by heartbeat, and completes with a proposal — or fails with an error — using
+the per-claim `leaseToken` the claim returned. The process must run with a key of clear-api's
+narrow `worker` role (`scripts/create-worker-user.ts` there). Through these tools it writes only
+Tasks it holds, and ImpactPriors in state `proposed` that a named analyst must accept; the role
+itself can do a little more with the key used directly (comments, feedback, minting keys — see
+ADR-0010), so keep the key out of the Worker's reach and revoke all of its keys to roll back. The
+`clear-impact-prior` skill is the procedure. Never set the flag for an analyst's or developer's
+client; no install channel does. `clear_whoami` reports it as `workerEnabled`.
+
+All Curated tools are read-only. Every result is JSON, both as a text block and as `structuredContent`.
 Failures come back as `isError: true` with `{ code, subCode?, message, upstreamUrl? }` preserved
 from clear-api — e.g. `FORBIDDEN` / `PENDING_APPROVAL` means the account is awaiting approval.
 Text that originated outside CLEAR (signals, report chunks, comments) is always under a `content`
@@ -247,8 +265,9 @@ behind the design: separate service over GraphQL (0001), read-only V1 (0002), cu
 generated ones (0003), the escape hatch as a config flag (0004), JSON results with errors as
 values (0005), why `clear_get_datapoints` requires a location (0006), and why skills ship as
 files rather than over the MCP connection (0007), why it installs three ways — npm, the
-Claude Code plugin and a Claude Desktop extension — from one version (0008), and why the same
-tools are also published as a Tool library (0009).
+Claude Code plugin and a Claude Desktop extension — from one version (0008), why the same
+tools are also published as a Tool library (0009), and why the Task Worker tools are the one
+write path, behind their own flag (0010).
 
 ## Tool library
 
