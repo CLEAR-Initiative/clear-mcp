@@ -49,10 +49,11 @@ Release: `bun run set-version X.Y.Z` in a PR → merge → `git tag vX.Y.Z && gi
 
 | Module | Responsibility |
 |---|---|
-| `src/config.ts` | Parses the five `CLEAR_*` env vars with zod; missing required vars → exit 1, named on stderr |
+| `src/config.ts` | Parses the six `CLEAR_*` env vars with zod; missing required vars → exit 1, named on stderr |
 | `src/upstream.ts` | The single GraphQL client. Adds the Caller's credential (`authorization: Bearer` for an API key, or forwarded headers such as the session `cookie`), `x-force-locale`, `User-Agent: clear-mcp/<version> (<tool>)`; normalises every failure to `{ ok: false, error: ToolError }` |
 | `src/server.ts` | `createServer({ config, fetch })` — builds the `McpServer`, registers tools, exposes `selfCheck()` |
 | `src/tools/*` | One module per Curated tool: `{ name, description, input, output, run }` via `defineTool` |
+| `src/worker.ts` | The four Task Worker tools (`src/tools/{claim-tasks,heartbeat-task,complete-task,fail-task}.ts`, shared shapes in `tasks-shared.ts`), registered only when `CLEAR_MCP_WORKER=1` (ADR-0010) |
 | `src/location-index.ts` | In-memory levels 0–2 index behind `clear_find_location`; loaded once per process and locale through the calling tool's upstream; holds data only, never an upstream or credential |
 | `src/gql/` | Generated — never edit by hand; commit the output |
 | `src/bin.ts` | stdio entrypoint |
@@ -91,8 +92,10 @@ chunks, comments) goes only under a `content` key.
 
 ## Hard rules
 
-- **No mutation tools, ever, in V1** (ADR-0002). `clear_graphql` rejects non-`query` documents
-  before any network call. Do not "fix" a missing write by adding a create tool.
+- **No mutation tools** (ADR-0002), with one amendment (ADR-0010): the four Task Worker tools in
+  `src/worker.ts`, registered only under `CLEAR_MCP_WORKER=1`, never Curated, never in the Tool
+  library, never set by an install channel. `clear_graphql` rejects non-`query` documents before
+  any network call. Do not "fix" a missing write by adding a create tool.
 - **stdout is the protocol channel.** Log to stderr only; no `console.log` anywhere in `src/`.
 - **Never select** `Location.geometry`, `Location.children`, `Location.metadata`,
   `Event.signals { … }` beyond ids, `User.email`, `UserAlert`, `Notification`, or any org/user
@@ -105,6 +108,6 @@ chunks, comments) goes only under a `content` key.
   Tool library Consumer's forwarded session headers) and forwards it unchanged.
 - **One version, three channels.** Never hand-edit a version: `bun run set-version`. The plugin and the
   `.mcpb` may set only `CLEAR_API_URL`, `CLEAR_API_KEY` (sensitive) and `CLEAR_MCP_LOCALE` — never
-  `CLEAR_MCP_RAW_GRAPHQL` (ADR-0004, ADR-0008).
+  `CLEAR_MCP_RAW_GRAPHQL` or `CLEAR_MCP_WORKER` (ADR-0004, ADR-0008, ADR-0010).
 - **Errors are values.** Tools return `isError: true` with `{ code, subCode?, message, upstreamUrl? }`
   preserved from clear-api's `extensions`; never throw on upstream conditions.
