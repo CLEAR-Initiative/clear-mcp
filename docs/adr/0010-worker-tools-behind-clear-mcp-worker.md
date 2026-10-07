@@ -65,3 +65,25 @@ rotate it by revoking the key or deactivating the worker user.
   sets `CLEAR_MCP_WORKER`; the routine sets it in its own environment.
 - `clear_whoami` reports `workerEnabled` beside `escapeHatchEnabled`.
 - The hosted V2 mode must never set the flag.
+
+## Amendment (V4, 2026-10-07): cases, and one Worker read
+
+clear-api V4 (its ADR-0010 amendment, #733) makes the **case** the unit an analyst decides:
+a web Worker completes an `event.impact_prior.web` Task with `cases` — one CaseProposal per
+past incident, with its source, verbatim quote, outcome figures on the Domain Ontology's
+seven metric types, and the CLEAR Event it matches — instead of a whole ImpactPrior.
+
+- `clear_complete_task` gains `cases` and `methodVersion`. It is the same mutation, so the
+  set of writes clear-mcp can send does not grow. The tool checks locally what clear-api
+  checks without a database (URL, date-time, scope, metric, bounds, limits, never `cases`
+  with `impactPrior`) so a malformed proposal fails before the network.
+- `clear_rejected_case_urls` is a fifth Worker tool and the first **read** among them: the
+  source URLs already rejected for an Event, which a web Worker must never propose again.
+  It sits behind `CLEAR_MCP_WORKER` rather than among the Curated tools because only a
+  Worker has a use for it — an analyst sees rejected cases with their reasons in clear-mvp —
+  and clear-api allows it to the `worker` role, platform admins and analysts only. It keeps
+  the default read-only annotations; `tests/tool-listing.test.ts` pins it as the one Worker
+  tool with `readOnlyHint: true`.
+- Rejected: a Curated `clear_list_case_proposals`. Case review is clear-mvp's job, and a
+  Curated tool would put a decision queue in every analyst's agent for no workflow that
+  needs it.
