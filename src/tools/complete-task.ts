@@ -40,7 +40,12 @@ const isoDate = z.iso.datetime({ offset: true });
 
 /** One case in an ImpactPrior's evidence basis — the shape clear-api stores verbatim. */
 export const impactPriorCase = z.object({
-  tier: z.enum(["clear", "web"]).describe("`clear` for a CLEAR Event or knowledge-base passage, `web` for an external source."),
+  tier: z
+    .enum(["clear", "web"])
+    .describe(
+      "Must match the Task's source kind: `web` (an external source) for `event.impact_prior.web`, " +
+        "`clear` (a CLEAR Event or knowledge-base passage) for `event.impact_prior.clear`.",
+    ),
   eventId: z.string().optional().describe("The CLEAR Event id, for a `clear` case drawn from an Event."),
   reportId: z.string().optional().describe("The knowledge-base report id, for a `clear` case drawn from a report."),
   sourceUrl: z.string().optional().describe("The source URL; required for a `web` case."),

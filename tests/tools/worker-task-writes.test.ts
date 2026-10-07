@@ -33,8 +33,10 @@ const PROPOSAL = {
   geographicScope: "district",
   horizonYears: 10,
   numberOfCases: 2,
+  // A web Worker's proposal: every case is `web` (a `clear` case would
+  // double-count the `.clear` Worker's evidence).
   basis: [
-    { tier: "clear", eventId: "evt-2021", occurredAt: "2021-08-10", scope: "district", quote: "…" },
+    { tier: "web", sourceUrl: "https://example.test/floods-2021", occurredAt: "2021-08-10", scope: "district", quote: "…" },
     { tier: "web", sourceUrl: "https://example.test/floods-2019", occurredAt: "2019-09-01", scope: "country", quote: "…" },
   ],
   methodVersion: "clear-impact-prior-web@0.2.0",

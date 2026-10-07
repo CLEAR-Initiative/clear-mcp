@@ -26,8 +26,10 @@ Version: `clear-impact-prior-web@0.2.0` — pass it as `methodVersion` on every 
 
 1. `clear_whoami` must report `workerEnabled: true` and a caller whose `role` is `worker`.
    If not, stop: this process is not a Worker. Do not try to enable anything.
-2. Web search must be available to you. If it is not, stop before claiming: a Task you
-   cannot research is better left in the queue than failed.
+2. Web search **and** the ability to open web pages must be available to you — a case
+   is cited from a page you opened, never from a search-result snippet. If either is
+   missing, stop before claiming: a Task you cannot research is better left in the queue
+   than failed or completed as "no prior found".
 3. Read `references/case-rules.md` once per session — it defines what counts as a case.
 
 ## The loop
@@ -70,10 +72,12 @@ location (`locations.general`, else `origin`, else `destination`), and `startedA
 `firstSignalCreatedAt`. An Event with no location or no types cannot be given a prior:
 complete with no proposal (step 5b) and say why in `result`.
 
-Resolve the country: `clear_find_location(query: <location name>, withinLocationId: …)`
-until you have the **level-0** ancestor's id. That id is `countryLocationId` — clear-api
-rejects any other. The level-2 ancestor (if any) is the Event's district; keep its name
-for the scope label.
+Resolve the country in one call: `clear_find_location(query: <the primary location's
+name>)`, then take the item whose `id` equals the Event's primary location id (a name can
+match several places; the id cannot). Its `ancestors` list runs nearest-first: the
+**level-0** ancestor's id — or the item's own id if its `level` is 0 — is
+`countryLocationId`, and clear-api rejects any other. The level-2 ancestor (or the item
+itself at level 2) is the Event's district; keep its name for the scope label.
 
 These two CLEAR reads are for understanding the Event — its hazard, country, district and
 dates. They are not a search for cases: do not call `clear_list_events` or

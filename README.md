@@ -89,7 +89,7 @@ Windsurf, …):
 }
 ```
 
-Pin a version (`@clear-initiative/mcp@0.1.0`) if you want upgrades to be deliberate. This is also
+Pin a version (`@clear-initiative/mcp@0.4.0`) if you want upgrades to be deliberate. This is also
 the route for the developer [escape hatch](#developer-escape-hatch): add
 `-e CLEAR_MCP_RAW_GRAPHQL=1`. The plugin and the extension deliberately cannot switch it on.
 

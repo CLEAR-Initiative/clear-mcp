@@ -68,8 +68,9 @@ for the prompt below to resolve.
 
 ## 3. The schedule and the prompt
 
-A cloud-scheduled Claude Code routine, **every 15 minutes**, with **web search enabled**
-(the skill refuses to claim without it — the web is its only source) and this prompt:
+A cloud-scheduled Claude Code routine, **every 15 minutes**, with **web search and web page
+fetching enabled** (the skill refuses to claim without both — the web is its only source,
+and a case must cite a page the Worker opened) and this prompt:
 
 > Run the `clear-impact-prior` skill once: claim at most one `event.impact_prior.web` Task
 > from CLEAR and finish it from web sources only. If nothing is waiting, say so and stop.
