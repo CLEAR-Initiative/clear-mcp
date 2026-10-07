@@ -53,8 +53,9 @@ export const impactPriorCase = z.object({
   tier: z
     .enum(["clear", "web"])
     .describe(
-      "Must match the Task's source kind: `web` (an external source) for `event.impact_prior.web`, " +
-        "`clear` (a CLEAR Event or knowledge-base passage) for `event.impact_prior.clear`.",
+      "Must match the Task's source kind: `clear` (a CLEAR Event or knowledge-base passage) for " +
+        "`event.impact_prior.clear`; `web` (an external source) only for a pre-V4 Worker — a " +
+        "`.web` Task completes with `cases` instead.",
     ),
   eventId: z.string().optional().describe("The CLEAR Event id, for a `clear` case drawn from an Event."),
   reportId: z.string().optional().describe("The knowledge-base report id, for a `clear` case drawn from a report."),
