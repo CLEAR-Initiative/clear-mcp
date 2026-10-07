@@ -117,8 +117,9 @@ export type EventsPageInput = {
 
 /**
  * An ImpactPrior proposal, given by a Worker on completing an
- * `event.impact_prior` Task with at least one case. Omit it entirely to
- * record `no_prior_found`.
+ * `event.impact_prior.*` Task with at least one case. Omit it entirely to
+ * record `no_prior_found`. The source kind is taken from the Task, never
+ * from the input.
  */
 export type ImpactPriorInput = {
   /** One entry per case; see `ImpactPrior.basis`. */
