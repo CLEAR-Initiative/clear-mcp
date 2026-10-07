@@ -29,7 +29,7 @@ export interface Config {
   /**
    * `CLEAR_MCP_WORKER=1` registers the Worker tools — the four Task writes
    * (claim, heartbeat, complete, fail) a Task Worker drains clear-api's queue
-   * with (ADR-0010). Off by default and never set by an install channel;
+   * with, and the web Worker's rejected-URL read (ADR-0010). Off by default and never set by an install channel;
    * optional so a Tool library Consumer's `Config` is unchanged (the
    * library never offers them).
    */

@@ -25,8 +25,16 @@ export const CURATED_TOOLS = [
   "clear_list_figures",
 ];
 
-/** The Task Worker's write tools (ADR-0010), registered only under CLEAR_MCP_WORKER=1. */
-export const WORKER_TOOLS = ["clear_claim_tasks", "clear_heartbeat_task", "clear_complete_task", "clear_fail_task"];
+/** The Task Worker's tools (ADR-0010), registered only under CLEAR_MCP_WORKER=1: four writes and one read. */
+export const WORKER_TOOLS = [
+  "clear_claim_tasks",
+  "clear_heartbeat_task",
+  "clear_complete_task",
+  "clear_fail_task",
+  "clear_rejected_case_urls",
+];
+/** The one Worker tool that writes nothing (V4): it keeps the read-only annotations. */
+const WORKER_READS = ["clear_rejected_case_urls"];
 
 describe("tools/list", () => {
   let seam: Seam;
@@ -51,7 +59,7 @@ describe("tools/list", () => {
     expect(names).toEqual([...CURATED_TOOLS, "clear_graphql", "clear_schema_type"]);
   });
 
-  it("adds the Worker tools, write-annotated, only when CLEAR_MCP_WORKER=1 — and never to the library", async () => {
+  it("adds the Worker tools, the writes write-annotated, only when CLEAR_MCP_WORKER=1 — and never to the library", async () => {
     for (const value of ["true", "yes", "0", ""]) {
       const s = await connect({ env: { CLEAR_MCP_WORKER: value } });
       expect((await s.client.listTools()).tools.map((t) => t.name), `CLEAR_MCP_WORKER=${value}`).toEqual(CURATED_TOOLS);
@@ -61,8 +69,8 @@ describe("tools/list", () => {
     const { tools } = await seam.client.listTools();
     expect(tools.map((t) => t.name)).toEqual([...CURATED_TOOLS, ...WORKER_TOOLS]);
     for (const t of tools) {
-      const isWorker = WORKER_TOOLS.includes(t.name);
-      expect(t.annotations?.readOnlyHint, t.name).toBe(!isWorker);
+      const isWorkerWrite = WORKER_TOOLS.includes(t.name) && !WORKER_READS.includes(t.name);
+      expect(t.annotations?.readOnlyHint, t.name).toBe(!isWorkerWrite);
       expect(t.annotations?.destructiveHint, t.name).toBe(false);
     }
     expect(seam.logs.some((l) => String(l.msg).includes("Worker tools enabled"))).toBe(true);

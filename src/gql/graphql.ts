@@ -51,6 +51,49 @@ export type AlertsPageInput = {
   to?: string | null | undefined;
 };
 
+/** One figure a case's source gives. */
+export type CaseFigureInput = {
+  lowerBound?: number | null | undefined;
+  /**
+   * One of `people_affected`, `people_displaced_new`,
+   * `people_displaced_cumulative`, `people_in_need`, `people_targeted`,
+   * `people_reached`, `households_affected`.
+   */
+  metric: string;
+  populationGroup?: string | null | undefined;
+  unit?: string | null | undefined;
+  upperBound?: number | null | undefined;
+  /** Non-negative. With bounds, `lowerBound ≤ value ≤ upperBound`. */
+  value: number;
+};
+
+/**
+ * One case a web Worker proposes on completing an
+ * `event.impact_prior.web` Task (V4).
+ */
+export type CaseProposalInput = {
+  figures?: Array<CaseFigureInput> | null | undefined;
+  /** `district` or `country`. */
+  geographicScope: string;
+  /** Must be one of the Event's `types`. */
+  hazardType: string;
+  /** A CLEAR location in the Event's country, if resolved. */
+  locationId?: string | null | undefined;
+  locationLabel: string;
+  /**
+   * The CLEAR Event this case describes, if the Worker found one: it must
+   * exist, not be the Event being enriched, manifest the case's hazard and
+   * sit in the same country.
+   */
+  matchedEventId?: string | null | undefined;
+  /** When the incident happened: within the request's horizon, not in the future. */
+  occurredAt: string;
+  /** The source's own words, verbatim. */
+  quote: string;
+  /** Absolute http(s) URL; one case per URL per Event. */
+  sourceUrl: string;
+};
+
 /**
  * Durable enrichment status for the Dagster drain. PENDING = needs
  * (re)enrichment (set on crisis create / event add / event remove);
@@ -276,6 +319,8 @@ export type ClearCompleteTaskMutationVariables = Exact<{
   result: unknown;
   usage?: TaskUsageInput | null | undefined;
   impactPrior?: ImpactPriorInput | null | undefined;
+  cases?: Array<CaseProposalInput> | CaseProposalInput | null | undefined;
+  methodVersion?: string | null | undefined;
 }>;
 
 
@@ -385,6 +430,13 @@ export type ClearListSignalsQueryVariables = Exact<{
 
 
 export type ClearListSignalsQuery = { signalsPage: { totalCount: number, hasMore: boolean, items: Array<{ id: string, publishedAt: string, severity: number | null, url: string | null, title: string | null, description: string | null, source: { name: string }, originLocation: { id: string, name: string, level: number } | null, destinationLocation: { id: string, name: string, level: number } | null, generalLocation: { id: string, name: string, level: number } | null }> } };
+
+export type ClearRejectedCaseUrlsQueryVariables = Exact<{
+  eventId: string;
+}>;
+
+
+export type ClearRejectedCaseUrlsQuery = { rejectedCaseUrls: Array<string> };
 
 export type ClearSearchKnowledgeBaseQueryVariables = Exact<{
   query: string;
@@ -512,13 +564,15 @@ export const ClearClaimTasksDocument = new TypedDocumentString(`
 }
     `) as unknown as TypedDocumentString<ClearClaimTasksMutation, ClearClaimTasksMutationVariables>;
 export const ClearCompleteTaskDocument = new TypedDocumentString(`
-    mutation ClearCompleteTask($id: String!, $leaseToken: String!, $result: JSON!, $usage: TaskUsageInput, $impactPrior: ImpactPriorInput) {
+    mutation ClearCompleteTask($id: String!, $leaseToken: String!, $result: JSON!, $usage: TaskUsageInput, $impactPrior: ImpactPriorInput, $cases: [CaseProposalInput!], $methodVersion: String) {
   completeTask(
     id: $id
     leaseToken: $leaseToken
     result: $result
     usage: $usage
     impactPrior: $impactPrior
+    cases: $cases
+    methodVersion: $methodVersion
   ) {
     id
     kind
@@ -922,6 +976,11 @@ export const ClearListSignalsDocument = new TypedDocumentString(`
   }
 }
     `) as unknown as TypedDocumentString<ClearListSignalsQuery, ClearListSignalsQueryVariables>;
+export const ClearRejectedCaseUrlsDocument = new TypedDocumentString(`
+    query ClearRejectedCaseUrls($eventId: String!) {
+  rejectedCaseUrls(eventId: $eventId)
+}
+    `) as unknown as TypedDocumentString<ClearRejectedCaseUrlsQuery, ClearRejectedCaseUrlsQueryVariables>;
 export const ClearSearchKnowledgeBaseDocument = new TypedDocumentString(`
     query ClearSearchKnowledgeBase($query: String!, $filters: KnowledgebaseFilters, $limit: Int) {
   searchKnowledgebase(query: $query, filters: $filters, limit: $limit) {

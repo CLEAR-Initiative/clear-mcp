@@ -32,9 +32,10 @@ export const failTaskTool = defineTool({
     "(a tool kept failing, the Event could not be read, the result could not be validated). " +
     "The Task returns to PENDING for another attempt while attempts remain, and becomes FAILED " +
     "with your error as its `lastError` — shown to the requester — once `maxAttempts` claims are " +
-    "used. Finding no prior is NOT a failure: complete with clear_complete_task and no " +
-    "`impactPrior` instead. Only the lease owner, only while LEASED; CONFLICT / NOT_LEASED " +
-    "means it is no longer yours to fail — stop.",
+    "used. Finding no prior is NOT a failure: complete with clear_complete_task instead — " +
+    "`cases: []` for an `event.impact_prior.web` Task, no `impactPrior` for any other. Only " +
+    "the lease owner, only while LEASED; CONFLICT / NOT_LEASED means it is no longer yours to " +
+    "fail — stop.",
   input: z.object({
     id: z.string().trim().min(1).describe("The Task id from clear_claim_tasks."),
     leaseToken: leaseTokenInput,

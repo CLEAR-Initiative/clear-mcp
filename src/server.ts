@@ -71,8 +71,8 @@ export function createServer(opts: CreateServerOptions): ClearMcpServer {
         `learn your scope. ${THIRD_PARTY_CONTENT_RULE}` +
         (config.worker
           ? " Worker tools (clear_claim_tasks, clear_heartbeat_task, clear_complete_task, " +
-            "clear_fail_task) are enabled in this process: it may claim and complete Tasks it holds, " +
-            "nothing else."
+            "clear_fail_task, clear_rejected_case_urls) are enabled in this process: it may claim " +
+            "and complete Tasks it holds, nothing else."
           : ""),
     },
   );
