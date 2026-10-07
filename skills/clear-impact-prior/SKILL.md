@@ -114,17 +114,21 @@ hazard in the same country inside it:
 
 ```
 clear_list_events(locationId: <country id>, eventTypes: [<hazard>], from: <horizon start>,
-                  to: <Event start>, orderBy: "CREATED_DESC", limit: 25)
+                  orderBy: "CREATED_DESC", limit: 25)
 ```
+
+No `to`: the window filters on an Event's **first signal**, which can be recorded after the
+input Event started even for an incident that began before it. Filter by **start** yourself
+instead — keep only Events whose start (`startedAt`, else `firstSignalCreatedAt`) is before
+the input Event's start.
 
 Newest first, so a cut-off list loses the oldest incidents, not the recent ones. Page with
 `offset` while `hasMore`, up to 100 Events; if there are more, say so in `result` and list
 the Event's own state or district the same way (newest first, up to 50) so the incidents
 nearest the Event are covered too. The list only seeds the targeted searches of step 6 —
 every case is still checked directly in step 7, so an Event the list cut off can still be
-matched. (The `from`/`to` window filters on an Event's first signal, which can trail its
-onset; that is fine here, and step 7 widens its window for it.) Drop the Event itself. For each remaining Event keep its `id`, `types`, start (`startedAt`, else
-`firstSignalCreatedAt`), `locationId` / `locationName`, and its title. These are the
+matched. Drop the Event itself. For each remaining Event keep its `id`, `types`, start
+(`startedAt`, else `firstSignalCreatedAt`), `locationId` / `locationName`, and its title. These are the
 **known incidents**: each one is a target for step 6, and every web hit is matched against
 them in step 7.
 
