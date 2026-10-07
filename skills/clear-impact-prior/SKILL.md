@@ -114,13 +114,16 @@ hazard in the same country inside it:
 
 ```
 clear_list_events(locationId: <country id>, eventTypes: [<hazard>], from: <horizon start>,
-                  to: <Event start>, orderBy: "CREATED_ASC", limit: 25)
+                  to: <Event start>, orderBy: "CREATED_DESC", limit: 25)
 ```
 
-Page with `offset` while `hasMore` (stop at 100 Events and say so in `result`). Then the
-same call with `locationId: <the Event's state or district id>` if the country list was
-cut short, so the incidents nearest the Event are not the ones lost. Drop the Event
-itself. For each remaining Event keep its `id`, `types`, start (`startedAt`, else
+Newest first, so a cut-off list loses the oldest incidents, not the recent ones. Page with
+`offset` while `hasMore`, up to 100 Events; if there are more, say so in `result` and list
+the Event's own state or district the same way (newest first, up to 50) so the incidents
+nearest the Event are covered too. The list only seeds the targeted searches of step 6 —
+every case is still checked directly in step 7, so an Event the list cut off can still be
+matched. (The `from`/`to` window filters on an Event's first signal, which can trail its
+onset; that is fine here, and step 7 widens its window for it.) Drop the Event itself. For each remaining Event keep its `id`, `types`, start (`startedAt`, else
 `firstSignalCreatedAt`), `locationId` / `locationName`, and its title. These are the
 **known incidents**: each one is a target for step 6, and every web hit is matched against
 them in step 7.
@@ -163,13 +166,20 @@ that the plan was cut short.
 For each incident you can cite, decide whether CLEAR already holds it
 (`references/case-rules.md`, "Matching"): **same hazard code**, **same country**, start
 within **±3 days** of the incident's date, and the **same or a parent/child place**. Look in
-the known incidents from step 5 first; if the incident fell outside that list (another
-admin area, a list cut short), check directly:
+the known incidents from step 5 first. For **every case without a match there** — not only
+those outside the list, since step 5 may have been cut short — check directly:
 
 ```
 clear_list_events(locationId: <country id>, eventTypes: [<hazard>],
-                  from: <occurredAt − 3 days>, to: <occurredAt + 3 days>)
+                  from: <window start − 3 days>, to: <window end + 30 days>, limit: 25)
 ```
+
+The window is the incident's day, or the whole month when the source gives only a month
+(`occurredAt` is then the 1st, but the incident may be any day of it). `to` reaches 30
+days past it because the list filters on an Event's **first signal**, which can be created
+well after the onset. Then compare each returned Event's **start** — `startedAt`, else
+`firstSignalCreatedAt` — with the incident's date: within ±3 days for a dated incident,
+inside the month (±3 days at its edges) for a month-only one. Page while `hasMore`.
 
 A match sets `matchedEventId`. Two candidates → the nearer place, then the nearer date;
 record the other in `result`. No match → leave `matchedEventId` out: the case is new to

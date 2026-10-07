@@ -26,7 +26,7 @@ propose it. A case **matches** a CLEAR Event when all four hold:
 |---|---|
 | Same hazard | The CLEAR Event's `types` include the case's `hazardType`. |
 | Same country | The CLEAR Event sits in the Event's country (`clear_list_events(locationId: <country id>)` returns only those). |
-| Same time | The CLEAR Event's start — `startedAt`, else `firstSignalCreatedAt` — is within **±3 days** of the case's `occurredAt`. For a source that gives only a month, the CLEAR Event's start falls in that month, and you say in `result` that the match is by month. |
+| Same time | The CLEAR Event's start — `startedAt`, else `firstSignalCreatedAt` — is within **±3 days** of the case's `occurredAt`. For a source that gives only a month, the CLEAR Event's start falls in that month (±3 days at its edges), and you say in `result` that the match is by month. Compare **starts**, never the list filter's window: `clear_list_events` filters `from`/`to` on the first signal, which can trail the onset by weeks, so search a wider window (skill step 7) and compare starts yourself. |
 | Same place | The CLEAR Event's location is the case's place, or a parent or child of it (a district Event matches a case in a town of that district; a state-level Event matches a case in one of its districts). Two places in different districts do not match, however close the dates. |
 
 - A match sets `matchedEventId` to that Event's id. clear-api checks that it exists, is not
