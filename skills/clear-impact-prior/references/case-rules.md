@@ -1,38 +1,42 @@
 # What counts as a case
 
 A **case** is one distinct prior occurrence of the same hazard in the same country, inside
-the horizon, that you can cite. One entry in `basis` per case; `numberOfCases` equals the
-length of `basis`.
+the horizon, that you can cite from the web. One entry in `basis` per case; `numberOfCases`
+equals the length of `basis`.
 
 ## Must hold for every case
 
 | Rule | Check |
 |---|---|
-| Same hazard type | The prior event's GLIDE code equals the Event's `hazardType` (one of `clear_get_event(...).types`). `FL` is not `FF`; `CE` is not `OT`. |
+| Same hazard type | The prior event's GLIDE code equals the Event's `hazardType` (one of `clear_get_event(...).types`). `FL` is not `FF`; `CE` is not `OT`. When a source does not give a code, map its description honestly — a "flash flood" is `FF`, a riverine or seasonal flood `FL` — and say so in `note`. |
 | Same country | The prior event lies under the Event's level-0 location (`countryLocationId`). A neighbouring country is out, however similar. |
 | Inside the horizon | `occurredAt` is within `horizonYears` of now (default 10 years). Older is out. |
-| Distinct | One case per prior event. Several reports of the same flood are one case: cite the best source, mention the rest in `note`. |
-| Citable | `tier: "clear"` carries `eventId` or `reportId`; `tier: "web"` carries `sourceUrl`. Every case carries a short verbatim `quote`. |
-| Not the input Event | Exclude the Event itself and anything that is plainly its earlier phase (same place, continuous dates, same cluster of signals). Those are duplicates, not priors. |
+| Distinct | One case per prior event. Several reports of the same flood are one case: cite the best source, mention the rest in `note`. A GLIDE number, where the source gives one, is the cleanest test of distinctness. |
+| Citable | `tier: "web"` with a `sourceUrl` you opened, a short verbatim `quote` from that page, and an `occurredAt`. If you cannot quote it, you cannot cite it, so it is not a case. |
+| Not the input Event | Exclude the Event itself and anything that is plainly its earlier phase (same place, continuous dates). Those are duplicates, not priors. |
 
 ## Scope label
 
-- `district` — the prior shares the Event's level-2 location.
+- `district` — the prior struck the Event's level-2 location (by name, from the source).
 - `country` — same country, different district (or no district known).
 
 The proposal's `geographicScope` is `district` only when **every** case is `district`;
 otherwise `country`. Say which cases are district-level in their own `scope` field either way.
 
-## Tiers and order
+## Sources
 
-1. **`clear` — CLEAR Events**: `clear_list_events` filtered by `eventTypes`, `locationId`
-   (the country id includes everything beneath it), `from` / `to` for the horizon. Incident-tier
-   Events are the strongest cases: they are already in CLEAR's vocabulary and linkable by id.
-2. **`clear` — knowledge base**: `clear_search_knowledge_base` with `countryLocationId`,
-   `eventTypes`, `from`. A passage that describes a specific prior occurrence (date, place,
-   impact) is a case with `reportId` and `sourceUrl`; a general overview is background, not a case.
-3. **`web`**: only after 1 and 2. Reputable humanitarian sources. Each case needs a URL and a
-   quote. If you cannot quote it, you cannot cite it, so it is not a case.
+This Worker drains `event.impact_prior.web`: the web is the only source, and every case is
+`tier: "web"`. Prefer, in order:
+
+1. ReliefWeb disaster pages and situation reports, OCHA, IFRC DREF / emergency appeals, the
+   GLIDE registry, UN agency and government disaster-management reports.
+2. Reputable media, only to fill a date or impact that a humanitarian source names but does
+   not detail.
+
+CLEAR's own Events and knowledge base are **not** sources here. They are the
+`event.impact_prior.clear` Worker's Task (Dagster), proposed side by side with yours and
+labelled by `sourceKind`; a `tier: "clear"` entry, an `eventId` or a `reportId` in your
+basis would count the same evidence twice.
 
 ## What is not a filter
 
@@ -46,6 +50,6 @@ whether something is a case.
 
 ## When there is no case
 
-Complete the Task **without** `impactPrior`. Record in `result` what you searched (tools,
-filters, queries, pages) and the candidates you excluded with the rule that excluded each.
+Complete the Task **without** `impactPrior`. Record in `result` what you searched (queries,
+pages opened) and the candidates you excluded with the rule that excluded each.
 "No prior found" is evidence too; a thin `result` is not.

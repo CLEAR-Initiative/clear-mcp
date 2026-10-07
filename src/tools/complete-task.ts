@@ -64,7 +64,7 @@ export const impactPriorInput = z.object({
   basis: z.array(impactPriorCase).min(1).describe("One entry per case."),
   validFrom: isoDate.optional().describe("ISO-8601 date-time the prior is valid from, e.g. `2020-01-01T00:00:00Z`."),
   validTo: isoDate.optional().describe("ISO-8601 date-time the prior is valid to, e.g. `2030-01-01T00:00:00Z`."),
-  methodVersion: z.string().min(1).describe("The skill's version string, e.g. `clear-impact-prior@0.1.0`."),
+  methodVersion: z.string().min(1).describe("The skill's version string, e.g. `clear-impact-prior-web@0.2.0`."),
 });
 
 export const taskUsageInput = z.object({
@@ -78,7 +78,7 @@ export const completeTaskTool = defineTool({
   name: "clear_complete_task",
   description:
     "WORKER TOOL (write). Report a claimed Task done. `result` is your raw output, kept for " +
-    "audit only. For an `event.impact_prior` Task pass `impactPrior` to propose an ImpactPrior " +
+    "audit only. For an `event.impact_prior.*` Task pass `impactPrior` to propose an ImpactPrior " +
     "(it is stored as `proposed`; a named analyst accepts or rejects it) — or omit it when you " +
     "found no case, which records `no_prior_found` and writes nothing. Report `usage` when " +
     "you can. clear-api validates the proposal against the Event (hazard among its types, " +

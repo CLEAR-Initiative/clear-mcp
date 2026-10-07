@@ -10,7 +10,7 @@ const WORKER_ENV = { CLEAR_MCP_WORKER: "1" } as const;
 
 const LEASED = {
   id: "task-1",
-  kind: "event.impact_prior",
+  kind: "event.impact_prior.web",
   subjectType: "event",
   subjectId: "evt-9",
   payload: { horizonYears: 10 },
@@ -35,7 +35,7 @@ describe("clear_claim_tasks", () => {
     seam = await connect();
     const names = (await seam.client.listTools()).tools.map((t) => t.name);
     expect(names).not.toContain("clear_claim_tasks");
-    const denied = await seam.callTool("clear_claim_tasks", { kind: "event.impact_prior" });
+    const denied = await seam.callTool("clear_claim_tasks", { kind: "event.impact_prior.web" });
     expect(denied.isError).toBe(true);
     expect(seam.requests).toHaveLength(0);
   });
@@ -50,7 +50,7 @@ describe("clear_claim_tasks", () => {
 
   it("leases Tasks of a kind and returns them with their leaseToken", async () => {
     seam = await connect({ env: WORKER_ENV, fixtures: { ClearClaimTasks: { data: { claimTasks: [LEASED] } } } });
-    const result = await seam.callTool("clear_claim_tasks", { kind: "event.impact_prior" });
+    const result = await seam.callTool("clear_claim_tasks", { kind: "event.impact_prior.web" });
     expect(result.isError).toBeFalsy();
     expect(result.structuredContent).toEqual({ tasks: [LEASED], count: 1 });
     expect(textJson(result)).toEqual(result.structuredContent);
@@ -58,18 +58,18 @@ describe("clear_claim_tasks", () => {
     const req = seam.requests[0]!;
     expect(req.operationName).toBe("ClearClaimTasks");
     expect(req.query).toMatch(/^\s*mutation ClearClaimTasks/);
-    expect(req.variables).toEqual({ kind: "event.impact_prior", limit: 1 });
+    expect(req.variables).toEqual({ kind: "event.impact_prior.web", limit: 1 });
     expect(req.headers.authorization).toBe("Bearer sk_live_test_key_000");
     expect(req.headers["user-agent"]).toMatch(/\(clear_claim_tasks\)$/);
   });
 
   it("clamps limit to [1, 10] and returns an empty list when nothing is waiting", async () => {
     seam = await connect({ env: WORKER_ENV, fixtures: { ClearClaimTasks: { data: { claimTasks: [] } } } });
-    const none = await seam.callTool("clear_claim_tasks", { kind: "event.impact_prior", limit: 50 });
+    const none = await seam.callTool("clear_claim_tasks", { kind: "event.impact_prior.web", limit: 50 });
     expect(none.structuredContent).toEqual({ tasks: [], count: 0 });
-    expect(seam.requests[0]!.variables).toEqual({ kind: "event.impact_prior", limit: 10 });
-    await seam.callTool("clear_claim_tasks", { kind: "event.impact_prior", limit: 0 });
-    expect(seam.requests[1]!.variables).toEqual({ kind: "event.impact_prior", limit: 1 });
+    expect(seam.requests[0]!.variables).toEqual({ kind: "event.impact_prior.web", limit: 10 });
+    await seam.callTool("clear_claim_tasks", { kind: "event.impact_prior.web", limit: 0 });
+    expect(seam.requests[1]!.variables).toEqual({ kind: "event.impact_prior.web", limit: 1 });
   });
 
   it("rejects an empty kind locally and relays FORBIDDEN for a non-worker key as a value", async () => {
@@ -83,7 +83,7 @@ describe("clear_claim_tasks", () => {
     expect(bad.isError).toBe(true);
     expect(seam.requests).toHaveLength(0);
 
-    const forbidden = await seam.callTool("clear_claim_tasks", { kind: "event.impact_prior" });
+    const forbidden = await seam.callTool("clear_claim_tasks", { kind: "event.impact_prior.web" });
     expect(forbidden.isError).toBe(true);
     expect(textJson(forbidden)).toMatchObject({ code: "FORBIDDEN", message: "Insufficient permissions" });
   });

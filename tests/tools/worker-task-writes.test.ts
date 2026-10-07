@@ -12,7 +12,7 @@ const TOKEN = "8c1f2a0e-0000-4000-8000-000000000001";
 
 const TASK = {
   id: "task-1",
-  kind: "event.impact_prior",
+  kind: "event.impact_prior.web",
   subjectType: "event",
   subjectId: "evt-9",
   payload: { horizonYears: 10 },
@@ -37,7 +37,7 @@ const PROPOSAL = {
     { tier: "clear", eventId: "evt-2021", occurredAt: "2021-08-10", scope: "district", quote: "…" },
     { tier: "web", sourceUrl: "https://example.test/floods-2019", occurredAt: "2019-09-01", scope: "country", quote: "…" },
   ],
-  methodVersion: "clear-impact-prior@0.1.0",
+  methodVersion: "clear-impact-prior-web@0.2.0",
 };
 const USAGE = { model: "anthropic/claude-sonnet-5-5", inputTokens: 12000, outputTokens: 900, costUsd: 0.05 };
 

@@ -9,7 +9,7 @@ import { z } from "zod";
  */
 export const taskItem = z.object({
   id: z.string(),
-  kind: z.string().describe("The kind of work, e.g. `event.impact_prior`."),
+  kind: z.string().describe("The kind of work, e.g. `event.impact_prior.web` or `event.impact_prior.clear`."),
   subjectType: z.string().describe("e.g. `event`."),
   subjectId: z.string().describe("The subject's id — pass to clear_get_event for an `event`."),
   payload: z.unknown().describe("Per-kind inputs, e.g. `{ horizonYears: 10 }`."),
@@ -25,7 +25,7 @@ export const taskItem = z.object({
     .string()
     .nullable()
     .describe("Set when the requester cancelled: stop work; the next write ends the Task CANCELLED."),
-  outcome: z.string().nullable().describe("After completion: `produced` or `no_prior_found` for an ImpactPrior Task."),
+  outcome: z.string().nullable().describe("After completion: `produced` or `no_prior_found` for an `event.impact_prior.*` Task."),
   lastError: z.string().nullable(),
   completedAt: z.string().nullable(),
 });
