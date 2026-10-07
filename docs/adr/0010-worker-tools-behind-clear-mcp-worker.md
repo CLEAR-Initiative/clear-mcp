@@ -30,16 +30,17 @@ worst waste a Task, and it cannot promote its own output — the Task writes
 carry a per-claim `leaseToken`, and an ImpactPrior lands as `proposed`, which
 a named analyst or admin must accept before it counts. In clear-api, the
 Caller runs as the narrow `worker` role, which bounds the **key** wherever it
-is used. As of clear-api PR #190 that bound is wider than the tools: the
-`worker` role is an approved content reader, so besides its Task writes it
-can still call `addComment` / `replyToComment` (on Events, Signals and
-Crises, tagging users), `addFeedback`, and `createApiKey` — none of which
-clear-mcp ever sends. A Worker runtime that can read its own MCP config (a
-Claude Code routine with a shell, say) could reach them with the key
-directly, so until clear-api refuses `worker` on those mutations, treat a
-leaked worker key as able to comment on content and mint further keys:
-rotate by deactivating the worker user or revoking **every** key it holds,
-never one key.
+is used — including outside clear-mcp, which matters because a Worker runtime
+that can read its own MCP config (a Claude Code routine with a shell, say)
+holds the key itself. Since clear-api PR #192 the role reads content like any
+approved user and writes nothing but the four Task mutations: every other
+mutation refuses `worker` before any lookup, and clear-api's
+`tests/schema/worker-write-scope.test.ts` walks the whole `Mutation` type to
+keep it that way. (#190, which introduced the role, briefly let it comment,
+leave feedback and mint API keys; #192 closed that before either reached
+production.) A leaked worker key can therefore at worst read content and
+claim, complete or fail Tasks — proposing ImpactPriors no one has accepted;
+rotate it by revoking the key or deactivating the worker user.
 
 ## Considered options
 
