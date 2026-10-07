@@ -25,7 +25,10 @@ export const taskItem = z.object({
     .string()
     .nullable()
     .describe("Set when the requester cancelled: stop work; the next write ends the Task CANCELLED."),
-  outcome: z.string().nullable().describe("After completion: `produced` or `no_prior_found` for an `event.impact_prior.*` Task."),
+  outcome: z.string().nullable().describe(
+      "After completion, for an `event.impact_prior.*` Task: `produced` or `no_prior_found`; for `.web` also " +
+        "`no_new_cases` (every case you sent had already been proposed for the Event).",
+    ),
   lastError: z.string().nullable(),
   completedAt: z.string().nullable(),
 });

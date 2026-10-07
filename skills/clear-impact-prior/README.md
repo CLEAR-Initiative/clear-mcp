@@ -83,8 +83,8 @@ Worker opened) and this prompt:
 > Run the `clear-impact-prior` skill once: claim at most one `event.impact_prior.web` Task
 > from CLEAR, search CLEAR's own Events first, then the web, match every web case against
 > CLEAR's Events, and complete it with `cases` and `methodVersion`. If nothing is waiting,
-> say so and stop. Report the Task id, the outcome (produced / no_prior_found / failed /
-> cancelled), the number of cases, how many matched a CLEAR Event, and how many carry a
+> say so and stop. Report the Task id, the outcome (produced / no_new_cases /
+> no_prior_found / failed / cancelled), the number of cases, how many matched a CLEAR Event, and how many carry a
 > figure.
 
 Sizing: a Task takes 5–12 minutes of research; the lease is 15 minutes and the skill

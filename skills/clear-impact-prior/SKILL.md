@@ -209,6 +209,8 @@ clear_complete_task(
 )
 ```
 
+- The result's `task.outcome` is `produced`, or `no_new_cases` when every case you sent had
+  already been proposed for the Event (clear-api skips those) — report it as it is.
 - **No case** — `cases: []`. clear-api records `no_prior_found`. Put the full plan you ran
   in `result` (every CLEAR list call, every web query with its mode and domain filter, every
   page fetched, every candidate excluded and the rule that excluded it). This is a normal
