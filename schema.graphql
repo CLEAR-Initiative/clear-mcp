@@ -535,6 +535,131 @@ type ArchiveStaleAlertsResult {
   alertsArchived: Int!
 }
 
+"""One figure a case's source gives."""
+input CaseFigureInput {
+  lowerBound: Float
+
+  """
+  One of `people_affected`, `people_displaced_new`,
+  `people_displaced_cumulative`, `people_in_need`, `people_targeted`,
+  `people_reached`, `households_affected`.
+  """
+  metric: String!
+  populationGroup: String
+  unit: String
+  upperBound: Float
+
+  """Non-negative. With bounds, `lowerBound ≤ value ≤ upperBound`."""
+  value: Float!
+}
+
+"""
+One historical case a web Worker found while enriching an Event (V4):
+a past incident like it, the source that reports it, the figures it gives,
+and the CLEAR Event it describes when CLEAR already holds one. The unit an
+analyst accepts or rejects, one by one, in the Inbox and on the Event page.
+"""
+type CaseProposal {
+  createdAt: DateTime!
+  decidedAt: DateTime
+  decidedBy: User
+
+  """Who decided it, when and why (null while `proposed`)."""
+  decidedById: String
+  decisionRationale: String
+  event: Event!
+
+  """The Event whose enrichment request produced the case."""
+  eventId: String!
+
+  """
+  The figures the source gives, each on one of the Domain Ontology's
+  seven metric types —
+  `[{ metric, value, lowerBound?, upperBound?, unit?, populationGroup? }]`.
+  Empty when the source states none.
+  """
+  figures: JSON!
+
+  """`district` or `country`: the scope the case was matched at."""
+  geographicScope: String!
+
+  """GLIDE code; one of the requesting Event's `types`."""
+  hazardType: String!
+  id: String!
+
+  """A CLEAR location for the place, when the Worker resolved one."""
+  locationId: String
+  locationLabel: String!
+  matchedEvent: Event
+
+  """The CLEAR Event this case describes, when CLEAR already holds it."""
+  matchedEventId: String
+
+  """Version string of the skill or handler that produced the case."""
+  methodVersion: String!
+
+  """When the incident happened (valid time), not when it was reported."""
+  occurredAt: DateTime!
+
+  """The source's own words, verbatim."""
+  quote: String!
+  resultEventId: String
+
+  """What accepting wrote into CLEAR: the Signal, and the Event it sits on."""
+  resultSignalId: String
+  sourceUrl: String!
+  state: CaseProposalState!
+  task: Task!
+  taskId: String!
+}
+
+"""
+One case a web Worker proposes on completing an
+`event.impact_prior.web` Task (V4).
+"""
+input CaseProposalInput {
+  figures: [CaseFigureInput!]
+
+  """`district` or `country`."""
+  geographicScope: String!
+
+  """Must be one of the Event's `types`."""
+  hazardType: String!
+
+  """A CLEAR location in the Event's country, if resolved."""
+  locationId: String
+  locationLabel: String!
+
+  """
+  The CLEAR Event this case describes, if the Worker found one: it must
+  exist, not be the Event being enriched, manifest the case's hazard and
+  sit in the same country.
+  """
+  matchedEventId: String
+
+  """
+  When the incident happened: within the request's horizon, not in the future.
+  """
+  occurredAt: DateTime!
+
+  """The source's own words, verbatim."""
+  quote: String!
+
+  """Absolute http(s) URL; one case per URL per Event."""
+  sourceUrl: String!
+}
+
+"""
+A web Worker writes `proposed` only (V4). A named admin or analyst
+accepts or rejects each case; a rejected one stays, so its URL is never
+proposed again for the same Event.
+"""
+enum CaseProposalState {
+  accepted
+  proposed
+  rejected
+}
+
 """Notification channel for alert subscriptions."""
 enum Channel {
   email
@@ -1319,6 +1444,14 @@ input EntityStatsInput {
 type Event {
   """Alerts created from this event."""
   alerts: [Alert!]!
+
+  """
+  Web cases proposed while enriching this Event (V4), newest first,
+  under the ImpactPrior visibility rule: `accepted` follows the Event,
+  `proposed` is visible to the requester and deciders, `rejected` to
+  deciders only.
+  """
+  caseProposals: [CaseProposal!]!
 
   """Aggregated casualties for the event (max across constituent signals)."""
   casualties: Int
@@ -2677,13 +2810,28 @@ type Mutation {
   (audit only). For an `event.impact_prior.*` Task, pass `impactPrior`
   to record a proposal (outcome `produced`; its `sourceKind` is the
   Task's kind, and it supersedes only the newest proposal of that same
-  kind) or omit it to record `no_prior_found`. Only the lease owner,
+  kind) or omit it to record `no_prior_found`. For an
+  `event.impact_prior.web` Task, pass `cases` and `methodVersion`
+  instead (V4): one CaseProposal per case, each decided on its own; a URL
+  already proposed for the Event is skipped; an empty list records
+  `no_prior_found`. The web cases inside an `impactPrior`'s
+  `basis` become CaseProposals too. Only the lease owner,
   only while LEASED (CONFLICT
   `NOT_LEASED`, FORBIDDEN `NOT_LEASE_OWNER`). If cancellation was
   requested meanwhile the Task becomes CANCELLED and the result is
   discarded.
   """
-  completeTask(id: String!, impactPrior: ImpactPriorInput, leaseToken: String!, result: JSON!, usage: TaskUsageInput): Task!
+  completeTask(
+    cases: [CaseProposalInput!]
+    id: String!
+    impactPrior: ImpactPriorInput
+    leaseToken: String!
+
+    """Skill or handler version that produced `cases`; required with them."""
+    methodVersion: String
+    result: JSON!
+    usage: TaskUsageInput
+  ): Task!
 
   """Create an alert from an event, notifying subscribers."""
   createAlert(input: CreateAlertInput!): Alert!
@@ -3828,6 +3976,14 @@ type Query {
   analysisById(id: String!): Analysis
 
   """
+  The Inbox's per-case Review items (V4): CaseProposals in one state
+  across every Event, newest first — `proposed` by default. Platform
+  admins and analysts only, so the list is exactly what the caller may
+  decide.
+  """
+  caseProposals(limit: Int = 50, offset: Int = 0, state: CaseProposalState = proposed): [CaseProposal!]!
+
+  """
   A CLEAR Agent Conversation by id: your own, or anyone's for a platform
   admin (read-only, and logged as `conversation.admin_read`). Null if no
   Conversation has that id; FORBIDDEN if it belongs to another user.
@@ -3902,6 +4058,12 @@ type Query {
   Look up an event by ID. Requires authentication. Non-admins can only access events within their team scope.
   """
   event(id: String!): Event
+
+  """
+  Web cases proposed for an Event, newest first. Same visibility as
+  `Event.caseProposals`.
+  """
+  eventCaseProposals(eventId: String!): [CaseProposal!]!
 
   """
   ImpactPriors produced for an Event, newest first. An `accepted`
@@ -4049,7 +4211,9 @@ type Query {
   The Inbox's Review items: ImpactPriors in one state across every
   Event, newest first — `proposed` by default, i.e. what is waiting
   for a decision. Platform admins and analysts only, so the list is
-  exactly what the caller may decide.
+  exactly what the caller may decide. Web proposals (and the bare
+  pre-fan-out kind) are left out: their cases are decided one by one
+  through `caseProposals` (V4).
   """
   impactPriors(limit: Int = 50, offset: Int = 0, state: ImpactPriorState = proposed): [ImpactPrior!]!
 
@@ -4214,6 +4378,13 @@ type Query {
   the same).
   """
   publicEvent(eventId: String!, token: String!): PublicEvent
+
+  """
+  Source URLs already rejected for an Event: a web Worker reads this
+  before searching and never proposes one again. The worker role,
+  platform admins and analysts.
+  """
+  rejectedCaseUrls(eventId: String!): [String!]!
 
   """
   One report's extracted structured datapoints. Returns null when
