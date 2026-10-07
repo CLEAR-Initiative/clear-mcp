@@ -244,13 +244,15 @@ With `CLEAR_MCP_WORKER=1` four more tools appear — `clear_claim_tasks`, `clear
 Task queue ([clear-api ADR-0010](../clear-api/docs/adr/0010-generic-task-queue-for-heterogeneous-workers.md)).
 They are the only writes clear-mcp can send, each a typed document pinned to the schema snapshot
 ([ADR-0010](docs/adr/0010-worker-tools-behind-clear-mcp-worker.md) amending ADR-0002); the escape
-hatch still rejects every mutation. A Worker claims Tasks of a kind (first: `event.impact_prior`),
-keeps each lease alive by heartbeat, and completes with a proposal — or fails with an error — using
-the per-claim `leaseToken` the claim returned. The process must run with a key of clear-api's
+hatch still rejects every mutation. A Worker claims Tasks of exactly one kind — one request fans
+out into one Task per source kind, today `event.impact_prior.clear` (Dagster, over CLEAR's own data)
+and `event.impact_prior.web` (the Claude Code routine, over the web) — keeps each lease alive by
+heartbeat, and completes with a proposal — or fails with an error — using the per-claim
+`leaseToken` the claim returned. The process must run with a key of clear-api's
 narrow `worker` role (`scripts/create-worker-user.ts` there), which clear-api confines to reading
 content and writing Tasks it holds and ImpactPriors in state `proposed` that a named analyst must
 accept — for the key itself, not only through these tools (ADR-0010). The
-`clear-impact-prior` skill is the procedure. Never set the flag for an analyst's or developer's
+`clear-impact-prior` skill is the web Worker's procedure. Never set the flag for an analyst's or developer's
 client; no install channel does. `clear_whoami` reports it as `workerEnabled`.
 
 All Curated tools are read-only. Every result is JSON, both as a text block and as `structuredContent`.
