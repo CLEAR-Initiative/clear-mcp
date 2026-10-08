@@ -159,32 +159,6 @@ export type EventsPageInput = {
 };
 
 /**
- * An ImpactPrior proposal, given by a Worker on completing an
- * `event.impact_prior.*` Task with at least one case. Omit it entirely to
- * record `no_prior_found`. The source kind is taken from the Task, never
- * from the input.
- */
-export type ImpactPriorInput = {
-  /** One entry per case; see `ImpactPrior.basis`. */
-  basis: unknown;
-  /** Must be the level-0 ancestor of the Event's primary location. */
-  countryLocationId: string;
-  /** `district` or `country`. */
-  geographicScope: string;
-  /** Must be one of the Event's `types`. */
-  hazardType: string;
-  horizonYears: number;
-  lowerBound?: number | null | undefined;
-  methodVersion: string;
-  metric?: string | null | undefined;
-  numberOfCases: number;
-  populationGroup?: string | null | undefined;
-  upperBound?: number | null | undefined;
-  validFrom?: string | null | undefined;
-  validTo?: string | null | undefined;
-};
-
-/**
  * Optional filters applied BEFORE the retrieval step — array
  * filters use overlap semantics (any-of), the time range uses
  * inclusive intersection. Leave a field null to skip that filter.
@@ -318,7 +292,6 @@ export type ClearCompleteTaskMutationVariables = Exact<{
   leaseToken: string;
   result: unknown;
   usage?: TaskUsageInput | null | undefined;
-  impactPrior?: ImpactPriorInput | null | undefined;
   cases?: Array<CaseProposalInput> | CaseProposalInput | null | undefined;
   methodVersion?: string | null | undefined;
 }>;
@@ -564,13 +537,12 @@ export const ClearClaimTasksDocument = new TypedDocumentString(`
 }
     `) as unknown as TypedDocumentString<ClearClaimTasksMutation, ClearClaimTasksMutationVariables>;
 export const ClearCompleteTaskDocument = new TypedDocumentString(`
-    mutation ClearCompleteTask($id: String!, $leaseToken: String!, $result: JSON!, $usage: TaskUsageInput, $impactPrior: ImpactPriorInput, $cases: [CaseProposalInput!], $methodVersion: String) {
+    mutation ClearCompleteTask($id: String!, $leaseToken: String!, $result: JSON!, $usage: TaskUsageInput, $cases: [CaseProposalInput!], $methodVersion: String) {
   completeTask(
     id: $id
     leaseToken: $leaseToken
     result: $result
     usage: $usage
-    impactPrior: $impactPrior
     cases: $cases
     methodVersion: $methodVersion
   ) {

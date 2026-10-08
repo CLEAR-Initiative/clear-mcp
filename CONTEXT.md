@@ -71,7 +71,8 @@ _Avoid_: mutation tools, write mode, admin tools
 
 **Task Worker**:
 A process that claims Tasks from clear-api and completes them: the scheduled
-Claude Code routine running the ImpactPrior skill, Dagster, a third-party agent.
+Claude Code routine running the `clear-impact-prior` skill (the web Worker), or a
+third-party agent.
 Runs as clear-api's narrow `worker` role, which bounds what the **Worker tools**
 can touch. Defined in clear-api's CONTEXT.md ("Tasks and Workers"); the CLEAR
 Agent is never one.
