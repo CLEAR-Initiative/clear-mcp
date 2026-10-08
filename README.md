@@ -19,6 +19,7 @@ You need two things whichever route you pick: the **URL of a clear-api** (e.g.
 | Claude Code | [the plugin](#claude-code-plugin-recommended) — two commands | the server **and** the [skills](#skills) |
 | Claude Desktop | [the extension](#claude-desktop-extension) — open one file | the server, key kept in your OS keychain |
 | Any other MCP client | [`npx -y @clear-initiative/mcp`](#any-mcp-client-npx) | the server |
+| Another agent or bot (a Grok bot, OpenAI Agents SDK, LangGraph, Codex, …) | [Connecting another agent](docs/connect-an-agent.md), or have an agent run the [`clear-connect`](skills/clear-connect/) skill | the server, a smoke test, config for your framework |
 
 ### Claude Code plugin (recommended)
 
@@ -350,9 +351,10 @@ citation and third-party-content rules that make an answer trustworthy.
 | [`clear-situation-analysis`](skills/clear-situation-analysis/) | A situation analysis for a scope in a fixed section order — summary, key figures, needs by severity, event picture, recent alerts — with a staleness check |
 | [`clear-sitrep`](skills/clear-sitrep/) | Freezing an analysis into a dated, immutable Situation Report with a provenance record |
 | [`clear-weekly-brief`](skills/clear-weekly-brief/) | The recurring weekly operational brief per area of operation — incidents, trend, analysis, draft advisories, media |
+| [`clear-connect`](skills/clear-connect/) | Setting up any agent's connection to CLEAR — route, identity, client config, a dependency-free smoke test (`scripts/smoke.mjs`) |
 
-The first three teach the tools; the last four are workflows over them, drawn from the Situation
-analysis PRD. They are plain [Agent Skills](https://agentskills.io) (a `SKILL.md` plus `references/`), so any
+The first three teach the tools; the next four are workflows over them, drawn from the Situation
+analysis PRD; `clear-connect` sets up the connection itself. They are plain [Agent Skills](https://agentskills.io) (a `SKILL.md` plus `references/`), so any
 harness that reads skills from disk can use them. Three ways to install:
 
 **As the Claude Code plugin** (recommended) — the [plugin install](#claude-code-plugin-recommended)

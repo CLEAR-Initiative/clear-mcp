@@ -58,7 +58,7 @@ Release: `bun run set-version X.Y.Z` in a PR → merge → `git tag vX.Y.Z && gi
 | `src/gql/` | Generated — never edit by hand; commit the output |
 | `src/bin.ts` | stdio entrypoint |
 | `src/library.ts` | The Tool library entry (`@clear-initiative/mcp/library`, ADR-0009): the Curated tools, `createUpstream`, `createLocationIndex` for an in-process Agent. Must never import `server.ts` / the MCP SDK |
-| `skills/` | The Agent Skills shipped to Consumers — `clear-briefing`, `clear-evidence`, `clear-graphql` teach the tools; `clear-analysis-scope`, `clear-situation-analysis`, `clear-sitrep`, `clear-weekly-brief` are analysis workflows over them. Plain markdown; distributed as a Claude Code plugin via `.claude-plugin/` and in the npm tarball (ADR-0007) |
+| `skills/` | The Agent Skills shipped to Consumers — `clear-briefing`, `clear-evidence`, `clear-graphql` teach the tools; `clear-analysis-scope`, `clear-situation-analysis`, `clear-sitrep`, `clear-weekly-brief` are analysis workflows over them; `clear-connect` sets up any agent's connection (guide: `docs/connect-an-agent.md`). Plain markdown; distributed as a Claude Code plugin via `.claude-plugin/` and in the npm tarball (ADR-0007) |
 | `scripts/refresh-schema.ts` | Introspects a clear-api and rewrites `schema.graphql` |
 | `.claude-plugin/` | The Claude Code plugin + marketplace: `plugin.json` lists the skills and declares the server (`mcpServers` → pinned `npx @clear-initiative/mcp@<version>`, `userConfig` for URL / key / locale) |
 | `mcpb/manifest.json` | The Claude Desktop extension manifest (`user_config`, display `tools` list) |
