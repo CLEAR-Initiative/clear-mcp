@@ -11,6 +11,7 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { PINNED_DOCS, PIN_PATTERN } from "../scripts/pinned-docs.js";
 import { connect, type Seam } from "./helpers/seam.js";
 
 const read = <T>(path: string): T => JSON.parse(readFileSync(resolve(import.meta.dirname, "..", path), "utf8")) as T;
@@ -58,6 +59,14 @@ describe("install channels", () => {
     expect(manifest.version).toBe(pkg.version);
     expect(plugin.mcpServers.clear.command).toBe("npx");
     expect(plugin.mcpServers.clear.args).toEqual(["-y", `${pkg.name}@${pkg.version}`]);
+  });
+
+  it("pin the docs Consumers copy to that same version (the setup prompt's unpkg URLs included)", () => {
+    for (const path of PINNED_DOCS) {
+      const pins = readFileSync(resolve(import.meta.dirname, "..", path), "utf8").match(PIN_PATTERN) ?? [];
+      expect(pins.length, path).toBeGreaterThan(0);
+      expect(new Set(pins), path).toEqual(new Set([`${pkg.name}@${pkg.version}`]));
+    }
   });
 
   it("set the same variables, from settings each channel declares, with the key kept secret", () => {
