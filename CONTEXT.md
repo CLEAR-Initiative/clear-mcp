@@ -63,7 +63,8 @@ _Avoid_: SDK, client library, "MCP-less mode"
 
 **Worker tools**:
 The four Task writes — claim, heartbeat, complete, fail — a **Task Worker** drains
-clear-api's Task queue with. Registered only when the process sets
+clear-api's Task queue with, plus the one read only a web Worker needs (the source URLs
+already rejected for an Event). Registered only when the process sets
 `CLEAR_MCP_WORKER=1`; never a **Curated tool**, never in the **Tool library**, never
 set by an **Install channel**. The only writes clear-mcp can send (ADR-0010).
 _Avoid_: mutation tools, write mode, admin tools

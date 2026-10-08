@@ -89,7 +89,7 @@ Windsurf, …):
 }
 ```
 
-Pin a version (`@clear-initiative/mcp@0.1.0`) if you want upgrades to be deliberate. This is also
+Pin a version (`@clear-initiative/mcp@0.4.0`) if you want upgrades to be deliberate. This is also
 the route for the developer [escape hatch](#developer-escape-hatch): add
 `-e CLEAR_MCP_RAW_GRAPHQL=1`. The plugin and the extension deliberately cannot switch it on.
 
@@ -107,7 +107,7 @@ them yourself.
 | `CLEAR_API_KEY` | yes | — | Your `sk_live_…` key; the only credential the server holds |
 | `CLEAR_MCP_LOCALE` | no | `en` | Sent as `x-force-locale`; one of `en`, `ar`, `fr`, `es` |
 | `CLEAR_MCP_RAW_GRAPHQL` | no | unset | `1` enables the developer-only raw GraphQL escape hatch |
-| `CLEAR_MCP_WORKER` | no | unset | `1` registers the four Task Worker tools (claim, heartbeat, complete, fail) — for a Worker process only, see [Worker tools](#worker-tools) |
+| `CLEAR_MCP_WORKER` | no | unset | `1` registers the five Task Worker tools (claim, heartbeat, complete, fail, and the rejected-case-URL read) — for a Worker process only, see [Worker tools](#worker-tools) |
 | `CLEAR_MCP_LOG_LEVEL` | no | `info` | pino level; logs go to stderr only |
 
 Missing `CLEAR_API_URL` or `CLEAR_API_KEY` exits 1 with the variable named on stderr. An optional
@@ -239,18 +239,24 @@ any network call. Leave it off for non-developer consumers.
 
 ### Worker tools
 
-With `CLEAR_MCP_WORKER=1` four more tools appear — `clear_claim_tasks`, `clear_heartbeat_task`,
-`clear_complete_task` and `clear_fail_task` — the Task Worker protocol over clear-api's generic
-Task queue ([clear-api ADR-0010](../clear-api/docs/adr/0010-generic-task-queue-for-heterogeneous-workers.md)).
-They are the only writes clear-mcp can send, each a typed document pinned to the schema snapshot
+With `CLEAR_MCP_WORKER=1` five more tools appear — `clear_claim_tasks`, `clear_heartbeat_task`,
+`clear_complete_task`, `clear_fail_task` and `clear_rejected_case_urls` — the Task Worker protocol
+over clear-api's generic Task queue ([clear-api ADR-0010](../clear-api/docs/adr/0010-generic-task-queue-for-heterogeneous-workers.md)).
+The first four are the only writes clear-mcp can send, each a typed document pinned to the schema snapshot
 ([ADR-0010](docs/adr/0010-worker-tools-behind-clear-mcp-worker.md) amending ADR-0002); the escape
-hatch still rejects every mutation. A Worker claims Tasks of a kind (first: `event.impact_prior`),
-keeps each lease alive by heartbeat, and completes with a proposal — or fails with an error — using
-the per-claim `leaseToken` the claim returned. The process must run with a key of clear-api's
+hatch still rejects every mutation. A Worker claims Tasks of exactly one kind — one request fans
+out into one Task per source kind, today `event.impact_prior.clear` (Dagster, over CLEAR's own data)
+and `event.impact_prior.web` (the Claude Code routine, over the web) — keeps each lease alive by
+heartbeat, and completes with a proposal — or fails with an error — using the per-claim
+`leaseToken` the claim returned. A `.web` Task completes with `cases` (one per past incident:
+source URL, verbatim quote, date, place, hazard, outcome figures on the seven metric types, and
+the CLEAR Event it matches) plus `methodVersion`, each decided by an analyst on its own (clear-api
+V4); `clear_rejected_case_urls` lists the URLs already rejected for an Event so a Worker never
+proposes them again. Other kinds complete with a whole `impactPrior`. The process must run with a key of clear-api's
 narrow `worker` role (`scripts/create-worker-user.ts` there), which clear-api confines to reading
-content and writing Tasks it holds and ImpactPriors in state `proposed` that a named analyst must
-accept — for the key itself, not only through these tools (ADR-0010). The
-`clear-impact-prior` skill is the procedure. Never set the flag for an analyst's or developer's
+content and writing Tasks it holds and the ImpactPriors or cases in state `proposed` that a named
+analyst must accept — for the key itself, not only through these tools (ADR-0010). The
+`clear-impact-prior` skill is the web Worker's procedure. Never set the flag for an analyst's or developer's
 client; no install channel does. `clear_whoami` reports it as `workerEnabled`.
 
 All Curated tools are read-only. Every result is JSON, both as a text block and as `structuredContent`.

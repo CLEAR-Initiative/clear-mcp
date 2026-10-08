@@ -53,7 +53,7 @@ Release: `bun run set-version X.Y.Z` in a PR → merge → `git tag vX.Y.Z && gi
 | `src/upstream.ts` | The single GraphQL client. Adds the Caller's credential (`authorization: Bearer` for an API key, or forwarded headers such as the session `cookie`), `x-force-locale`, `User-Agent: clear-mcp/<version> (<tool>)`; normalises every failure to `{ ok: false, error: ToolError }` |
 | `src/server.ts` | `createServer({ config, fetch })` — builds the `McpServer`, registers tools, exposes `selfCheck()` |
 | `src/tools/*` | One module per Curated tool: `{ name, description, input, output, run }` via `defineTool` |
-| `src/worker.ts` | The four Task Worker tools (`src/tools/{claim-tasks,heartbeat-task,complete-task,fail-task}.ts`, shared shapes in `tasks-shared.ts`), registered only when `CLEAR_MCP_WORKER=1` (ADR-0010) |
+| `src/worker.ts` | The Task Worker tools — four writes (`src/tools/{claim-tasks,heartbeat-task,complete-task,fail-task}.ts`, shared shapes in `tasks-shared.ts`) and one read (`rejected-case-urls.ts`) — registered only when `CLEAR_MCP_WORKER=1` (ADR-0010) |
 | `src/location-index.ts` | In-memory levels 0–2 index behind `clear_find_location`; loaded once per process and locale through the calling tool's upstream; holds data only, never an upstream or credential |
 | `src/gql/` | Generated — never edit by hand; commit the output |
 | `src/bin.ts` | stdio entrypoint |
@@ -92,7 +92,7 @@ chunks, comments) goes only under a `content` key.
 
 ## Hard rules
 
-- **No mutation tools** (ADR-0002), with one amendment (ADR-0010): the four Task Worker tools in
+- **No mutation tools** (ADR-0002), with one amendment (ADR-0010): the four Task Worker writes in
   `src/worker.ts`, registered only under `CLEAR_MCP_WORKER=1`, never Curated, never in the Tool
   library, never set by an install channel. `clear_graphql` rejects non-`query` documents before
   any network call. Do not "fix" a missing write by adding a create tool.
