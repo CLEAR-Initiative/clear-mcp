@@ -154,6 +154,11 @@ filters), and once per known incident from step 5 that has no source yet
 (`query: "<hazard phrase> <its place> <month year>"`). Phrases come from
 `references/hazard-search.md`.
 
+Record every knowledge-base search in `result.searched.knowledgeBase` (query, filters, hit
+count), including those that found nothing. A passage whose `sourceUrl` is in step 4's
+rejected list is never a source — skip it, and the incident it describes stays a target for
+step 6a like any incident without a source.
+
 A passage is citable as it stands: it is the report's own text, so it needs no page
 opening. When a passage names a past incident of the Event's hazard in its country inside
 the horizon — its date or month and its place — it is a candidate case: `sourceUrl` is the
@@ -244,7 +249,9 @@ best, list the rest in `result`), following `references/case-rules.md`:
 ```
 clear_complete_task(
   id, leaseToken,
-  result: { searched: { clear: [<list calls>], web: [{ query, mode?, allowedDomains?, hits }...] },
+  result: { searched: { clear: [<list calls>],
+                        knowledgeBase: [{ query, filters, hits, reportIds }...],
+                        web: [{ query, mode?, allowedDomains?, hits }...] },
             knownIncidents: <n>, fetched: [url...], candidates: <n>, matched: <n>,
             rejectedSkipped: <n>, excluded: [{ url, reason }...], hazardPhrases: [...], notes },
   cases: [ <one per incident> ],
@@ -255,7 +262,8 @@ clear_complete_task(
 - The result's `task.outcome` is `produced`, or `no_new_cases` when every case you sent had
   already been proposed for the Event (clear-api skips those) — report it as it is.
 - **No case** — `cases: []`. clear-api records `no_prior_found`. Put the full plan you ran
-  in `result` (every CLEAR list call, every web query with its mode and domain filter, every
+  in `result` (every CLEAR list call, every knowledge-base search with its filters, every web
+query with its mode and domain filter, every
   page fetched, every candidate excluded and the rule that excluded it). This is a normal
   outcome, not a failure — but a `result` with two queries in it is a failed research step,
   and the analyst will read it as one.
