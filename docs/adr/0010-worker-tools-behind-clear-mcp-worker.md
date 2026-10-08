@@ -87,3 +87,15 @@ seven metric types, and the CLEAR Event it matches — instead of a whole Impact
 - Rejected: a Curated `clear_list_case_proposals`. Case review is clear-mvp's job, and a
   Curated tool would put a decision queue in every analyst's agent for no workflow that
   needs it.
+
+## Amendment (0.4.1, 2026-10-08): CLEAR's knowledge base before the web
+
+The Dagster Worker (`event.impact_prior.clear`) is being retired from impact priors: its
+LLM-proposed CLEAR prior is redundant now that clear-api computes the prior from accepted
+history (clear-api #738). It was the only Worker that read CLEAR's **knowledge base**
+(ingested ReliefWeb reports), so the web skill takes that over. "CLEAR first" now means its
+Events, then `clear_search_knowledge_base` (same country, hazard and horizon), then the web.
+A knowledge-base passage is citable as it stands: its `sourceUrl` and a verbatim quote from
+its `chunkText`, without opening a page. Its cases are matched against CLEAR's Events like
+any other. No new tool: `clear_search_knowledge_base` is an existing read. Method version
+`clear-impact-prior-web@0.4.1`.
