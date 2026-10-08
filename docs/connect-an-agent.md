@@ -9,8 +9,12 @@ or Claude Desktop, the [README's Install section](../README.md#install) is short
 The setup procedure is itself a skill: [`skills/clear-connect`](../skills/clear-connect/SKILL.md).
 The README's [Set up with a prompt](../README.md#set-up-with-a-prompt) is a copy-paste prompt
 that has an agent fetch the skill from the public npm package (via unpkg) and connect itself.
-To have a coding agent set up a *different* bot's code, add a line saying which bot it is and
-where it lives, e.g. *"It is a Python bot that calls Grok and lives in `~/code/my-bot`."*
+
+To have a coding agent set up a *different* bot instead, change the prompt's target so it does not
+configure itself. Replace the first line with *"Connect the bot in `~/code/my-bot` (a Python
+bot that calls Grok's API) to CLEAR's humanitarian data through the clear-mcp MCP server."*, and
+replace *"Work out how you yourself run"* with *"Work out how that bot runs"*. Everything else
+stays as it is: the key is the bot's, read from the bot's environment.
 
 The agent picks the route, writes the client config from
 [`references/clients.md`](../skills/clear-connect/references/clients.md), runs the smoke test and
