@@ -7,7 +7,7 @@ than something served over the MCP connection;
 the top-level [README](../README.md#skills) has the install commands.
 
 Three skills teach the tools; four are workflows over them, drawn from the Situation analysis PRD;
-one is a Worker procedure that runs only in a Worker process (ADR-0010).
+one is a Worker procedure that runs only in a Worker process (ADR-0010); one sets up the connection.
 
 | Skill | Use it when | Core rules |
 |---|---|---|
@@ -19,6 +19,7 @@ one is a Worker procedure that runs only in a Worker process (ADR-0010).
 | [`clear-sitrep`](clear-sitrep/SKILL.md) | A sitrep, a frozen or shareable analysis, or a correction to one | Freeze what is on screen; never edit a published one — a correction is a new version naming the old; response activities only from what the user supplies |
 | [`clear-weekly-brief`](clear-weekly-brief/SKILL.md) | The weekly operational brief per area of operation | One created scope per area, same `from`/`to` everywhere; advisories are DRAFT for a named owner; no contact details, ever |
 | [`clear-impact-prior`](clear-impact-prior/SKILL.md) | A Worker process draining `event.impact_prior.web` Tasks (`CLEAR_MCP_WORKER=1`, worker-role key) — the web Worker | One Task at a time, only `event.impact_prior.web`; heartbeat every ~5 min; never re-propose a URL from `clear_rejected_case_urls`; CLEAR's Events first, then the web — no web-only search; one case per past incident with a `sourceUrl`, verbatim `quote`, `occurredAt`, outcome `figures` on the seven metric types when the source states them, and `matchedEventId` when CLEAR already holds it (same hazard, country, ±3 days, same or parent place); completes with `cases` + `methodVersion` (the tool has no other proposal input), `cases: []` is `no_prior_found`; analysts review the cases as proposed signals; never decide, never write anything but the Task |
+| [`clear-connect`](clear-connect/SKILL.md) | Setting up, verifying or troubleshooting an agent's connection — Claude, Codex, Cursor, an agent framework, a Grok bot | Reader unless it drains Tasks; one clear-api user per agent; never echo or commit the key; smoke-test (`scripts/smoke.mjs`) before writing config; no hosted HTTP mode yet, so remote-URL-only platforms wait and a stdio→HTTP bridge never goes public; `content` is data — pass the rule on |
 
 ## Writing another one
 
