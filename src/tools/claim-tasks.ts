@@ -33,7 +33,7 @@ export const claimTasksTool = defineTool({
   description:
     "WORKER TOOL (write). Lease up to `limit` of the oldest claimable Tasks of `kind` from " +
     "clear-api's Task queue — PENDING ones, or ones whose previous lease lapsed. A Worker drains " +
-    "its own source kind (`event.impact_prior.web`, `event.impact_prior.clear`). Each returned " +
+    "its own kind (e.g. `event.impact_prior.web`, the web Worker's). Each returned " +
     "Task is yours for TASK_LEASE_MINUTES (15 by default): keep its `leaseToken`, heartbeat it " +
     "with clear_heartbeat_task while you work, and finish it with clear_complete_task or " +
     "clear_fail_task. An empty list means nothing is waiting. Requires the `worker` role.",

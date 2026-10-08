@@ -7,14 +7,15 @@ description: Drain clear-api's event.impact_prior.web Tasks as the web Task Work
 
 An **ImpactPrior** (CLEAR Domain Ontology) is what has typically happened before given a
 hazard type, a context and a population, inferred from historical events like the input
-Event. An analyst asks for one on an Event; clear-api fans the request out into **one Task
-per source kind** — `event.impact_prior.clear` (Dagster, over CLEAR's own data) and
-`event.impact_prior.web` (you). You do not propose a whole ImpactPrior. You propose
-**cases**: one per past incident, each with the source that reports it, the source's own
-words, the figures it gives, and the CLEAR Event it describes when CLEAR already holds one.
-A named analyst accepts or rejects each case on its own; the prior is computed from the
-accepted history later. **You never decide**, and you never write anything but the Task you
-hold and its `proposed` cases.
+Event. clear-api computes it from the history it holds (`Event.computedImpactPriors`); no
+Worker proposes one. What an Event's history lacks — past incidents CLEAR has no source or
+figures for — an analyst asks you to find: clear-api queues an `event.impact_prior.web`
+Task for the Event, and you propose **cases**: one per past incident, each with the source
+that reports it, the source's own words, the figures it gives, and the CLEAR Event it
+describes when CLEAR already holds one. Analysts review them as **proposed signals**
+(CaseProposals in the API) and accept or reject each on its own; accepted figures feed the
+computed prior. **You never decide**, and you never write anything but the Task you hold
+and its `proposed` cases.
 
 There is no web-only search. CLEAR comes first — its own Events, then the reports in its
 knowledge base. The Events tell you which incidents are already known, and every incident
@@ -23,7 +24,7 @@ case that re-describes an Event CLEAR already has cites it by `matchedEventId` i
 arriving as something new. The web fills the gaps and supplies what a CLEAR Event lacks —
 a citable source and its outcome figures.
 
-Version: `clear-impact-prior-web@0.4.1` — pass it as `methodVersion` on every completion.
+Version: `clear-impact-prior-web@0.5.0` — pass it as `methodVersion` on every completion.
 
 ## Preconditions
 
@@ -52,8 +53,7 @@ clear_claim_tasks(kind: "event.impact_prior.web", limit: 1)
 - Otherwise keep the Task's `id`, `leaseToken`, `subjectId` (the Event id) and
   `payload.horizonYears` (default 10). The lease lasts 15 minutes.
 
-Claim only `.web`. The bare `event.impact_prior` is the pre-fan-out kind, and `.clear` is
-Dagster's; neither takes `cases`.
+Claim only `event.impact_prior.web`: it is the only kind this skill completes with `cases`.
 
 ### 2. Keep the lease alive
 
@@ -255,7 +255,7 @@ clear_complete_task(
             knownIncidents: <n>, fetched: [url...], candidates: <n>, matched: <n>,
             rejectedSkipped: <n>, excluded: [{ url, reason }...], hazardPhrases: [...], notes },
   cases: [ <one per incident> ],
-  methodVersion: "clear-impact-prior-web@0.4.1"
+  methodVersion: "clear-impact-prior-web@0.5.0"
 )
 ```
 
@@ -267,7 +267,8 @@ query with its mode and domain filter, every
   page fetched, every candidate excluded and the rule that excluded it). This is a normal
   outcome, not a failure — but a `result` with two queries in it is a failed research step,
   and the analyst will read it as one.
-- Never send `impactPrior` on a `.web` Task, and never both.
+- `cases` and `methodVersion` are the whole proposal: `clear_complete_task` has no other
+  proposal input (the whole-prior `impactPrior` input was removed in clear-mcp 0.5.0).
 - Omit `usage`: you cannot see your own token counts or cost, and a guessed figure would be
   stored as real spend.
 

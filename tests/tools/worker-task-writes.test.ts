@@ -27,21 +27,6 @@ const TASK = {
   completedAt: null,
 };
 
-const PROPOSAL = {
-  hazardType: "FL",
-  countryLocationId: "loc-sdn",
-  geographicScope: "district",
-  horizonYears: 10,
-  numberOfCases: 2,
-  // A whole-prior proposal, as a non-web Worker (`.clear`) still sends it; a
-  // web Worker sends `cases` instead (V4, below).
-  basis: [
-    { tier: "clear", eventId: "evt-2021", occurredAt: "2021-08-10", scope: "district" },
-    { tier: "clear", reportId: "rep-2019", occurredAt: "2019-09-01", scope: "country", quote: "…" },
-  ],
-  methodVersion: "clear-impact-prior-clear@0.1.0",
-};
-
 /** Two V4 cases a web Worker proposes: one matched to a CLEAR Event, with figures; one new to CLEAR, with none. */
 const CASES = [
   {
@@ -64,7 +49,7 @@ const CASES = [
     geographicScope: "country",
   },
 ];
-const METHOD = "clear-impact-prior-web@0.4.0";
+const METHOD = "clear-impact-prior-web@0.5.0";
 const USAGE = { model: "anthropic/claude-sonnet-5-5", inputTokens: 12000, outputTokens: 900, costUsd: 0.05 };
 
 describe("Worker task writes", () => {
@@ -130,15 +115,14 @@ describe("Worker task writes", () => {
     expect(out.task.cancelRequestedAt).toBe("2026-10-06T14:05:00.000Z");
   });
 
-  it("clear_complete_task sends result, usage and the ImpactPrior proposal verbatim", async () => {
-    const done = { ...TASK, status: "COMPLETED", outcome: "produced", leaseExpiresAt: null, completedAt: "2026-10-06T14:20:00.000Z" };
+  it("clear_complete_task sends result and usage verbatim, for a kind that completes with `result` only", async () => {
+    const done = { ...TASK, kind: "event.example", status: "COMPLETED", outcome: null, leaseExpiresAt: null, completedAt: "2026-10-06T14:20:00.000Z" };
     seam = await connect({ env: WORKER_ENV, fixtures: { ClearCompleteTask: { data: { completeTask: done } } } });
     const result = await seam.callTool("clear_complete_task", {
       id: "task-1",
       leaseToken: TOKEN,
       result: { searched: ["clear_list_events", "web"], cases: 2 },
       usage: USAGE,
-      impactPrior: PROPOSAL,
     });
     expect(result.isError).toBeFalsy();
     expect(result.structuredContent).toEqual({ task: done });
@@ -149,8 +133,32 @@ describe("Worker task writes", () => {
       leaseToken: TOKEN,
       result: { searched: ["clear_list_events", "web"], cases: 2 },
       usage: USAGE,
-      impactPrior: PROPOSAL,
     });
+  });
+
+  it("clear_complete_task has no impactPrior input, and its document never declares one", async () => {
+    // clear-api is removing `completeTask(impactPrior:)` and `ImpactPriorInput`. GraphQL rejects
+    // a document that declares a variable of an unknown type even when it is never sent, so the
+    // document must not mention it at all — or every completion would break.
+    const done = { ...TASK, status: "COMPLETED", outcome: "produced", leaseExpiresAt: null, completedAt: "2026-10-06T14:20:00.000Z" };
+    seam = await connect({ env: WORKER_ENV, fixtures: { ClearCompleteTask: { data: { completeTask: done } } } });
+    const tool = (await seam.client.listTools()).tools.find((t) => t.name === "clear_complete_task");
+    expect(Object.keys(tool!.inputSchema.properties ?? {})).not.toContain("impactPrior");
+    expect(tool!.description).not.toContain("impactPrior");
+
+    // An agent that still sends one gets it dropped, never forwarded.
+    await seam.callTool("clear_complete_task", {
+      id: "task-1",
+      leaseToken: TOKEN,
+      result: {},
+      cases: CASES,
+      methodVersion: METHOD,
+      impactPrior: { hazardType: "FL" },
+    });
+    const [req] = seam.requests;
+    expect(req!.variables).not.toHaveProperty("impactPrior");
+    expect(req!.query).not.toMatch(/impactPrior|ImpactPriorInput/);
+    expect(req!.query).toMatch(/\$cases: \[CaseProposalInput!\]/);
   });
 
   it("clear_complete_task sends a web Worker's cases and methodVersion verbatim (V4)", async () => {
@@ -193,10 +201,8 @@ describe("Worker task writes", () => {
     const [c] = CASES;
     const fig = c!.figures[0]!;
     for (const args of [
-      // Cases need a methodVersion, and never ride with an impactPrior.
+      // Cases need a methodVersion.
       { cases: CASES },
-      { cases: CASES, methodVersion: METHOD, impactPrior: PROPOSAL },
-      { cases: [], methodVersion: METHOD, impactPrior: PROPOSAL },
       // The URL is an absolute http(s) URL, given once per completion.
       { cases: [{ ...c, sourceUrl: "ftp://example.test/x" }], methodVersion: METHOD },
       { cases: [{ ...c, sourceUrl: "reliefweb.int/report" }], methodVersion: METHOD },
@@ -238,31 +244,12 @@ describe("Worker task writes", () => {
     expect(textJson(r)).toMatchObject({ code: "BAD_USER_INPUT", message: expect.stringContaining("matchedEventId") });
   });
 
-  it("clear_complete_task without a proposal records no_prior_found and omits the optional variables", async () => {
+  it("clear_complete_task without cases records no_prior_found and omits the optional variables", async () => {
     const none = { ...TASK, status: "COMPLETED", outcome: "no_prior_found", leaseExpiresAt: null, completedAt: "2026-10-06T14:20:00.000Z" };
     seam = await connect({ env: WORKER_ENV, fixtures: { ClearCompleteTask: { data: { completeTask: none } } } });
     const result = await seam.callTool("clear_complete_task", { id: "task-1", leaseToken: TOKEN, result: { cases: 0 } });
     expect((result.structuredContent as { task: { outcome: string } }).task.outcome).toBe("no_prior_found");
     expect(seam.requests[0]!.variables).toEqual({ id: "task-1", leaseToken: TOKEN, result: { cases: 0 } });
-  });
-
-  it("clear_complete_task rejects a malformed proposal locally — zero cases, a bad scope, a bad tier, a bad date", async () => {
-    seam = await connect({ env: WORKER_ENV });
-    for (const impactPrior of [
-      { ...PROPOSAL, numberOfCases: 0, basis: [] },
-      { ...PROPOSAL, geographicScope: "continent" },
-      { ...PROPOSAL, basis: [{ tier: "rumour", scope: "country" }] },
-      { ...PROPOSAL, validFrom: "last spring" },
-      // Date.parse accepts these; clear-api's Prisma layer does not.
-      { ...PROPOSAL, validFrom: "2020-01-01" },
-      { ...PROPOSAL, validTo: "2020-02-30T00:00:00Z" },
-    ]) {
-      // The SDK rejects it against the input schema before `run` (an MCP-level
-      // error text, not our JSON value) — either way nothing reaches clear-api.
-      const r = await seam.callTool("clear_complete_task", { id: "task-1", leaseToken: TOKEN, result: {}, impactPrior });
-      expect(r.isError).toBe(true);
-    }
-    expect(seam.requests).toHaveLength(0);
   });
 
   it("clear_fail_task forwards the error and returns the Task's new status", async () => {

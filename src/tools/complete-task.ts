@@ -11,7 +11,6 @@ export const COMPLETE_TASK_DOCUMENT = graphql(/* GraphQL */ `
     $leaseToken: String!
     $result: JSON!
     $usage: TaskUsageInput
-    $impactPrior: ImpactPriorInput
     $cases: [CaseProposalInput!]
     $methodVersion: String
   ) {
@@ -20,7 +19,6 @@ export const COMPLETE_TASK_DOCUMENT = graphql(/* GraphQL */ `
       leaseToken: $leaseToken
       result: $result
       usage: $usage
-      impactPrior: $impactPrior
       cases: $cases
       methodVersion: $methodVersion
     ) {
@@ -47,41 +45,6 @@ export const COMPLETE_TASK_DOCUMENT = graphql(/* GraphQL */ `
  *  an impossible "2020-02-30" — must fail here as BAD_USER_INPUT rather than deep
  *  inside clear-api's transaction. `Date.parse` is too lenient for this. */
 const isoDate = z.iso.datetime({ offset: true });
-
-/** One case in an ImpactPrior's evidence basis — the shape clear-api stores verbatim. */
-export const impactPriorCase = z.object({
-  tier: z
-    .enum(["clear", "web"])
-    .describe(
-      "Must match the Task's source kind: `clear` (a CLEAR Event or knowledge-base passage) for " +
-        "`event.impact_prior.clear`; `web` (an external source) only for a pre-V4 Worker — a " +
-        "`.web` Task completes with `cases` instead.",
-    ),
-  eventId: z.string().optional().describe("The CLEAR Event id, for a `clear` case drawn from an Event."),
-  reportId: z.string().optional().describe("The knowledge-base report id, for a `clear` case drawn from a report."),
-  sourceUrl: z.string().optional().describe("The source URL; required for a `web` case."),
-  quote: z.string().optional().describe("A short verbatim passage supporting the case."),
-  occurredAt: z.string().optional().describe("ISO-8601 date of the prior event."),
-  locationLabel: z.string().optional(),
-  scope: z.enum(["district", "country"]).describe("`district` if it shares the Event's district, else `country`."),
-  note: z.string().optional().describe("Free text, e.g. a seasonality note. Never a filter."),
-});
-
-export const impactPriorInput = z.object({
-  hazardType: z.string().min(1).describe("GLIDE code; must be one of the Event's `types`."),
-  countryLocationId: z.string().min(1).describe("The level-0 ancestor of the Event's primary location (clear_find_location)."),
-  geographicScope: z.enum(["district", "country"]).describe("The scope the cases were matched at: `district` only if every case shares the Event's district."),
-  horizonYears: z.number().int().positive().describe("From the Task payload (default 10)."),
-  populationGroup: z.string().optional(),
-  metric: z.string().optional(),
-  lowerBound: z.number().optional(),
-  upperBound: z.number().optional(),
-  numberOfCases: z.number().int().min(1).describe("Must equal the length of `basis`."),
-  basis: z.array(impactPriorCase).min(1).describe("One entry per case."),
-  validFrom: isoDate.optional().describe("ISO-8601 date-time the prior is valid from, e.g. `2020-01-01T00:00:00Z`."),
-  validTo: isoDate.optional().describe("ISO-8601 date-time the prior is valid to, e.g. `2030-01-01T00:00:00Z`."),
-  methodVersion: z.string().min(1).describe("The skill's version string, e.g. `clear-impact-prior-web@0.4.0`."),
-});
 
 /** The Domain Ontology's seven metric types — clear-api's `METRIC_TYPES`. A figure names exactly one. */
 export const CASE_METRICS = [
@@ -179,12 +142,12 @@ export const completeTaskTool = defineTool({
     "WORKER TOOL (write). Report a claimed Task done. `result` is your raw output, kept for " +
     "audit only. For an `event.impact_prior.web` Task pass `cases` (one per historical " +
     "incident, each with its source, verbatim quote, figures and matched CLEAR Event) and " +
-    "`methodVersion`; each case is stored as `proposed` and a named analyst accepts or " +
-    "rejects it on its own; `cases: []` records `no_prior_found`. For any other " +
-    "`event.impact_prior.*` Task pass `impactPrior` instead (stored as `proposed`), or omit it " +
-    "when you found no case. Never both. Report `usage` when you can. clear-api validates " +
-    "the proposal against the Event (hazard among its types, country, horizon, matched Event) " +
-    "and answers BAD_USER_INPUT naming the bad field — fix the proposal and complete again, " +
+    "`methodVersion`; each case is stored as a `proposed` CaseProposal (a proposed signal) that a " +
+    "named analyst accepts or rejects on its own; `cases: []` or no `cases` at all records " +
+    "`no_prior_found` when you found nothing. Any other kind completes with `result` only. " +
+    "Report `usage` when you can. clear-api validates " +
+    "each case against the Event (hazard among its types, country, horizon, matched Event) " +
+    "and answers BAD_USER_INPUT naming the bad field — fix the case and complete again, " +
     "do not fail the Task. A case whose URL was already proposed for the Event is skipped. Only the lease " +
     "owner, only while LEASED; CANCELLED in the result means the requester withdrew it and " +
     "your result was discarded. CONFLICT / NOT_LEASED means the Task is no longer yours " +
@@ -195,25 +158,19 @@ export const completeTaskTool = defineTool({
       leaseToken: leaseTokenInput,
       result: z.record(z.string(), z.unknown()).describe("Raw output: what you searched, what you found, how you decided."),
       usage: taskUsageInput.optional(),
-      impactPrior: impactPriorInput
-        .optional()
-        .describe("A whole-prior proposal, for an `event.impact_prior.*` Task other than `.web`. Never with `cases`."),
       cases: z
         .array(caseProposalInput)
         .max(CASE_LIMITS.cases)
         .optional()
-        .describe("For an `event.impact_prior.web` Task: one entry per historical case; `[]` records `no_prior_found`. Never with `impactPrior`."),
+        .describe("For an `event.impact_prior.web` Task: one entry per historical case; `[]` (or omitting it) records `no_prior_found`."),
       methodVersion: z
         .string()
         .trim()
         .min(1)
         .optional()
-        .describe("The skill's version string that produced `cases`, e.g. `clear-impact-prior-web@0.4.0`. Required with a non-empty `cases`."),
+        .describe("The skill's version string that produced `cases`, e.g. `clear-impact-prior-web@0.5.0`. Required with a non-empty `cases`."),
     })
     .superRefine((input, ctx) => {
-      if (input.cases !== undefined && input.impactPrior !== undefined) {
-        ctx.addIssue({ code: "custom", path: ["cases"], message: "give either cases or an impactPrior, not both" });
-      }
       if (input.cases?.length && input.methodVersion === undefined) {
         ctx.addIssue({ code: "custom", path: ["methodVersion"], message: "required with cases" });
       }
@@ -235,7 +192,6 @@ export const completeTaskTool = defineTool({
         leaseToken: input.leaseToken,
         result: input.result,
         usage: input.usage,
-        impactPrior: input.impactPrior,
         cases: input.cases,
         methodVersion: input.methodVersion,
       }),

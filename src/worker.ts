@@ -13,7 +13,7 @@ import type { ToolDefinition } from "./tools/types.js";
  * Tool library — a Consumer that is not a Worker never sees them. The
  * Escape hatch still rejects every mutation: these typed tools are the only
  * write path, and the Caller's `worker` role in clear-api bounds what they
- * can touch (Tasks it holds; `proposed` ImpactPriors and CaseProposals a
+ * can touch (Tasks it holds; `proposed` CaseProposals — proposed signals — a
  * person must accept).
  */
 export const workerTools: ToolDefinition[] = [
