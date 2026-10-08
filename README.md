@@ -17,7 +17,8 @@ You need two things whichever route you pick: the **URL of a clear-api** (e.g.
 ### Set up with a prompt
 
 Paste this into any agent that can fetch URLs and run commands, such as Claude Code, Codex,
-Cursor, a Grok bot or your own framework. Fill in the URL first. The agent reads the
+Cursor, a Grok bot or your own framework, to connect *that agent*. Fill in the URL first. Every
+file and the server are pinned to one release, so a setup can be repeated exactly. The agent reads the
 [`clear-connect`](skills/clear-connect/) skill from the public npm package, works out its own
 install route, writes its config, runs the smoke test and reports back:
 
@@ -25,10 +26,11 @@ install route, writes its config, runs the smoke test and reports back:
 Connect yourself to CLEAR's humanitarian data through the clear-mcp MCP server.
 
 Follow the clear-connect setup skill exactly. Fetch and read these first:
-- https://unpkg.com/@clear-initiative/mcp/skills/clear-connect/SKILL.md
-- https://unpkg.com/@clear-initiative/mcp/skills/clear-connect/references/clients.md
-- https://unpkg.com/@clear-initiative/mcp/skills/clear-connect/scripts/smoke.mjs  (the smoke test: save it and run it with node)
-The other skills it mentions are at https://unpkg.com/@clear-initiative/mcp/skills/<name>/SKILL.md.
+- https://unpkg.com/@clear-initiative/mcp@0.5.1/skills/clear-connect/SKILL.md
+- https://unpkg.com/@clear-initiative/mcp@0.5.1/skills/clear-connect/references/clients.md
+- https://unpkg.com/@clear-initiative/mcp@0.5.1/skills/clear-connect/scripts/smoke.mjs  (the smoke test: save it and run it with node)
+The other skills it mentions are at https://unpkg.com/@clear-initiative/mcp@0.5.1/skills/<name>/SKILL.md.
+Use this one version everywhere: run the server as @clear-initiative/mcp@0.5.1, and run the smoke test against it with `-- npx -y @clear-initiative/mcp@0.5.1`.
 
 CLEAR API URL: <clear-api URL>
 API key: read it from the CLEAR_API_KEY environment variable. Never print, log or commit it. If it is not set, stop and ask me to set it; do not ask me to paste it into this chat.
@@ -121,7 +123,7 @@ Windsurf, …):
 }
 ```
 
-Pin a version (`@clear-initiative/mcp@0.5.0`) if you want upgrades to be deliberate. This is also
+Pin a version (`@clear-initiative/mcp@0.5.1`) if you want upgrades to be deliberate. This is also
 the route for the developer [escape hatch](#developer-escape-hatch): add
 `-e CLEAR_MCP_RAW_GRAPHQL=1`. The plugin and the extension deliberately cannot switch it on.
 

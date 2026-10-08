@@ -8,12 +8,15 @@
  * - `.claude-plugin/plugin.json` `version`, and the `@clear-initiative/mcp@<version>`
  *   pin its `mcpServers` entry runs, so plugin skills and server move together
  * - `mcpb/manifest.json` `version` — the Claude Desktop extension
+ * - every `@clear-initiative/mcp@<version>` pin written in `PINNED_DOCS` — the README's
+ *   setup prompt (its unpkg URLs and server pin) and the config examples agents copy
  *
  * `tests/packaging.test.ts` fails if they disagree, and the release workflow
  * refuses a `v*` tag that does not match them.
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { PINNED_DOCS, PIN_PATTERN } from "./pinned-docs.js";
 
 const version = process.argv[2];
 if (!version || !/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(version)) {
@@ -44,3 +47,8 @@ update(".claude-plugin/plugin.json", (plugin) => {
 update("mcpb/manifest.json", (manifest) => {
   manifest.version = version;
 });
+for (const path of PINNED_DOCS) {
+  const file = resolve(root, path);
+  writeFileSync(file, readFileSync(file, "utf8").replace(PIN_PATTERN, `@clear-initiative/mcp@${version}`));
+  process.stderr.write(`set-version: ${path} → ${version}\n`);
+}

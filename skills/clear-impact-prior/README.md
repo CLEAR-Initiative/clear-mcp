@@ -60,7 +60,7 @@ MCP server for the routine (any MCP client config; `npx` resolves the published 
   "mcpServers": {
     "clear": {
       "command": "npx",
-      "args": ["-y", "@clear-initiative/mcp@0.5.0"],
+      "args": ["-y", "@clear-initiative/mcp@0.5.1"],
       "env": {
         "CLEAR_API_URL": "https://<clear-api>",
         "CLEAR_API_KEY": "sk_live_…",
