@@ -1,7 +1,7 @@
 # What counts as a case
 
 A **case** is one distinct past incident of the same hazard in the same country, inside the
-horizon, that you can cite from a page you opened. One entry in `cases` per incident. Each
+horizon, that you can cite from a page you opened or a passage in CLEAR's knowledge base. One entry in `cases` per incident. Each
 case is decided by an analyst on its own, so each must stand on its own: its source, its
 words, its figures, and the CLEAR Event it is, if CLEAR has it.
 
@@ -13,7 +13,7 @@ words, its figures, and the CLEAR Event it is, if CLEAR has it.
 | Same country | The incident lies in the Event's country. A neighbouring country is out, however similar. |
 | Inside the horizon | `occurredAt` is within `horizonYears` of now (default 10) and not in the future. clear-api rejects anything else. |
 | Distinct | One case per incident. Several reports of one flood are one case: cite the best source (the one that states the outcome), list the others in `result`. A GLIDE number, where the source gives one, is the cleanest test of distinctness. |
-| Citable | A `sourceUrl` (absolute http or https) you opened, and a short **verbatim** `quote` from that page naming the incident, its date or month, and its place. If you cannot quote it, it is not a case. |
+| Citable | A `sourceUrl` (absolute http or https) you opened — or the `sourceUrl` of a knowledge-base passage (`clear_search_knowledge_base`) — and a short **verbatim** `quote` from that page or passage naming the incident, its date or month, and its place. If you cannot quote it, it is not a case. |
 | Not rejected | The `sourceUrl` is not in `clear_rejected_case_urls` for this Event. |
 | Not the input Event | Exclude the Event itself and anything that is plainly its earlier phase (same place, continuous dates). Those are duplicates, not past incidents. |
 
@@ -34,7 +34,7 @@ propose it. A case **matches** a CLEAR Event when all four hold:
 - Two CLEAR Events match → the nearer place, then the nearer date. Record the other in
   `result`.
 - No match → leave `matchedEventId` out. The case is an incident CLEAR does not hold yet.
-- A CLEAR Event with no web source for it is not a case: say in `result` which known
+- A CLEAR Event with no source for it (knowledge base or web) is not a case: say in `result` which known
   incidents you could not source.
 
 ## Figures

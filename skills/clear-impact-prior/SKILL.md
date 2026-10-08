@@ -1,6 +1,6 @@
 ---
 name: clear-impact-prior
-description: Drain clear-api's event.impact_prior.web Tasks as the web Task Worker — claim a Task, find the past incidents like that Event (same hazard, same country, inside the horizon), look each one up in CLEAR's own Events first, then fill the gaps from the web (ReliefWeb, OCHA, IFRC, UN, government sources), and complete it with one case per incident — source, verbatim quote, outcome figures and the CLEAR Event it matches — or "no prior found". Use only in a Worker process where clear_whoami reports workerEnabled (CLEAR_MCP_WORKER=1 with a worker-role key), typically a scheduled routine; never from an analyst's or developer's client.
+description: Drain clear-api's event.impact_prior.web Tasks as the web Task Worker — claim a Task, find the past incidents like that Event (same hazard, same country, inside the horizon), look each one up in CLEAR's own Events and knowledge base first, then fill the gaps from the web (ReliefWeb, OCHA, IFRC, UN, government sources), and complete it with one case per incident — source, verbatim quote, outcome figures and the CLEAR Event it matches — or "no prior found". Use only in a Worker process where clear_whoami reports workerEnabled (CLEAR_MCP_WORKER=1 with a worker-role key), typically a scheduled routine; never from an analyst's or developer's client.
 ---
 
 # ImpactPrior Worker (web): cases
@@ -16,13 +16,14 @@ A named analyst accepts or rejects each case on its own; the prior is computed f
 accepted history later. **You never decide**, and you never write anything but the Task you
 hold and its `proposed` cases.
 
-There is no web-only search. CLEAR's own Events come first: they tell you which incidents
-are already known, and every incident you find on the web is matched against them, so a
+There is no web-only search. CLEAR comes first — its own Events, then the reports in its
+knowledge base. The Events tell you which incidents are already known, and every incident
+you find (in the knowledge base or on the web) is matched against them, so a
 case that re-describes an Event CLEAR already has cites it by `matchedEventId` instead of
 arriving as something new. The web fills the gaps and supplies what a CLEAR Event lacks —
 a citable source and its outcome figures.
 
-Version: `clear-impact-prior-web@0.4.0` — pass it as `methodVersion` on every completion.
+Version: `clear-impact-prior-web@0.4.1` — pass it as `methodVersion` on every completion.
 
 ## Preconditions
 
@@ -134,15 +135,41 @@ its `id`, `types`, start (`startedAt`, else `firstSignalCreatedAt`), `locationId
 them in step 7.
 
 A CLEAR Event is never a case on its own — a case needs a source you can quote. It is what
-a web case **matches**.
+a case **matches**.
+
+### 5b. Search CLEAR's knowledge base
+
+CLEAR also holds reports — ReliefWeb situation reports, flash updates, assessments — split
+into passages. They are often the best source for a past incident's outcome, and they are
+already in CLEAR. Search them before the web:
+
+```
+clear_search_knowledge_base(query: "<hazard phrase> <country> displaced affected",
+                            countryLocationId: <country id>, eventTypes: [<hazard>],
+                            from: <horizon start>, to: <Event start>, limit: 20)
+```
+
+then once per state or district name (`query: "<hazard phrase> <state or district>"`, same
+filters), and once per known incident from step 5 that has no source yet
+(`query: "<hazard phrase> <its place> <month year>"`). Phrases come from
+`references/hazard-search.md`.
+
+A passage is citable as it stands: it is the report's own text, so it needs no page
+opening. When a passage names a past incident of the Event's hazard in its country inside
+the horizon — its date or month and its place — it is a candidate case: `sourceUrl` is the
+passage's `sourceUrl`, and `quote` is copied **verbatim** from its `chunkText` (the part
+naming the incident, its date and place, and any figures). Keep the `reportId` and page
+range in `result`. An incident found here goes through step 7's matching like any other,
+and is not searched for again on the web unless the passage states no figures. Incidents
+found here that CLEAR's Events lack are new targets for step 6a.
 
 ### 6. Search the web
 
 Plan, then search; `references/hazard-search.md` has the phrases, the source families and
 the query shapes. The plan is a floor, not a ceiling.
 
-**6a. One targeted search per known incident** (most recent first, until the lease budget in
-6d): `<hazard phrase> <its place> <month year>` with the humanitarian source family allowed,
+**6a. One targeted search per known incident** without a figure-stating source from step 5b
+(most recent first, until the lease budget in 6d): `<hazard phrase> <its place> <month year>` with the humanitarian source family allowed,
 then the open web if that finds nothing. You are looking for the report of **that**
 incident that states its outcome — people displaced, people affected, households affected.
 
@@ -156,7 +183,8 @@ it has one.
 that names the incident, its date (or month) and place, and — wherever the page states it —
 its outcome figures. The `quote` is that passage, copied: never a paraphrase, never the
 search snippet. A page you cannot open, or that has no such passage, is not a source; try
-another for the same incident or record it under `excluded`. Skip any URL from step 4.
+another for the same incident or record it under `excluded`. Skip any URL from step 4. (A
+knowledge-base passage from step 5b is already the source's text and needs no opening.)
 
 Prefer sources that report outcomes. Between two pages about one incident, cite the one
 that states the figures (a situation report, a flash update, a DREF, a DTM displacement
@@ -220,7 +248,7 @@ clear_complete_task(
             knownIncidents: <n>, fetched: [url...], candidates: <n>, matched: <n>,
             rejectedSkipped: <n>, excluded: [{ url, reason }...], hazardPhrases: [...], notes },
   cases: [ <one per incident> ],
-  methodVersion: "clear-impact-prior-web@0.4.0"
+  methodVersion: "clear-impact-prior-web@0.4.1"
 )
 ```
 
@@ -249,12 +277,13 @@ FAILED and the requester sees your error.
 
 ## Hard rules
 
-- CLEAR first, then the web; every web case is matched against CLEAR's Events before it is
-  proposed. No web-only search.
+- CLEAR first — its Events, then its knowledge base — then the web; every case is matched
+  against CLEAR's Events before it is proposed. No web-only search.
 - One hazard, one country, one horizon — the Event's. A case from another country or
   another hazard is never a case, however relevant it looks; that is an analyst's decision.
-- Every case has a `sourceUrl` you opened and a `quote` copied from that page; every figure
-  is in the quote. No page, no quote, no case.
+- Every case has a `sourceUrl` you opened (or a knowledge-base passage's `sourceUrl`) and a
+  `quote` copied verbatim from that page or passage; every figure is in the quote. No source
+  text, no quote, no case.
 - A URL from `clear_rejected_case_urls` is never proposed again for that Event.
 - Seasonality, El Niño, conflict context: a note in `result`, never a filter.
 - Never write to anything but your own Task. There is no other write tool, and there must

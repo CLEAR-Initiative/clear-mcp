@@ -59,7 +59,7 @@ MCP server for the routine (any MCP client config; `npx` resolves the published 
   "mcpServers": {
     "clear": {
       "command": "npx",
-      "args": ["-y", "@clear-initiative/mcp@0.4.0"],
+      "args": ["-y", "@clear-initiative/mcp@0.4.1"],
       "env": {
         "CLEAR_API_URL": "https://<clear-api>",
         "CLEAR_API_KEY": "sk_live_…",
@@ -103,7 +103,7 @@ queue; the platform-wide claim cap arrives in V3 once Dagster reports real cost.
 - In clear-api, the Event's page shows the `.web` Task COMPLETED with `leaseOwner`
   `routine-worker@clearinitiative.io` and, with cases, `proposed` CaseProposals beside it
   (`Event.caseProposals`, the Inbox's per-case list) with `methodVersion`
-  `clear-impact-prior-web@0.4.0`; cases CLEAR already held carry a `matchedEventId`, and
+  `clear-impact-prior-web@0.4.1`; cases CLEAR already held carry a `matchedEventId`, and
   most carry a figure. The `.clear` Task and its proposal, if any, sit next to them.
   `model` / `costUsd` stay empty on the Task: the routine cannot measure its own usage, so it
   does not report any (take spend from the routine's billing).
