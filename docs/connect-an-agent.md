@@ -7,10 +7,10 @@ or Claude Desktop, the [README's Install section](../README.md#install) is short
 ## The fast path: let an agent do the setup
 
 The setup procedure is itself a skill: [`skills/clear-connect`](../skills/clear-connect/SKILL.md).
-Point any coding agent (Claude Code, Codex, Cursor) at it:
-
-> Read `skills/clear-connect/SKILL.md` in the clear-mcp repo and connect my bot to CLEAR. It is a
-> Python bot that calls Grok and lives in `~/code/my-bot`.
+The README's [Set up with a prompt](../README.md#set-up-with-a-prompt) is a copy-paste prompt
+that has an agent fetch the skill from the public npm package (via unpkg) and connect itself.
+To have a coding agent set up a *different* bot's code, add a line saying which bot it is and
+where it lives, e.g. *"It is a Python bot that calls Grok and lives in `~/code/my-bot`."*
 
 The agent picks the route, writes the client config from
 [`references/clients.md`](../skills/clear-connect/references/clients.md), runs the smoke test and

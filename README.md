@@ -14,6 +14,37 @@ You need two things whichever route you pick: the **URL of a clear-api** (e.g.
 `https://api.clear.example.org`) and a **CLEAR API key** (`sk_live_…`), minted at
 `<clear-api>/portal`. The key is the only credential the server holds; it is forwarded unchanged.
 
+### Set up with a prompt
+
+Paste this into any agent that can fetch URLs and run commands, such as Claude Code, Codex,
+Cursor, a Grok bot or your own framework. Fill in the URL first. The agent reads the
+[`clear-connect`](skills/clear-connect/) skill from the public npm package, works out its own
+install route, writes its config, runs the smoke test and reports back:
+
+```text
+Connect yourself to CLEAR's humanitarian data through the clear-mcp MCP server.
+
+Follow the clear-connect setup skill exactly. Fetch and read these first:
+- https://unpkg.com/@clear-initiative/mcp/skills/clear-connect/SKILL.md
+- https://unpkg.com/@clear-initiative/mcp/skills/clear-connect/references/clients.md
+- https://unpkg.com/@clear-initiative/mcp/skills/clear-connect/scripts/smoke.mjs  (the smoke test: save it and run it with node)
+The other skills it mentions are at https://unpkg.com/@clear-initiative/mcp/skills/<name>/SKILL.md.
+
+CLEAR API URL: <clear-api URL>
+API key: read it from the CLEAR_API_KEY environment variable. Never print, log or commit it. If it is not set, stop and ask me to set it; do not ask me to paste it into this chat.
+Role: reader, not a Task Worker.
+
+Work out how you yourself run (client, framework, model API) and use the matching route. If you can only take a remote MCP URL, stop and tell me, because that is not supported yet. If you cannot run commands or change your own configuration, give me the exact steps instead.
+
+When you are done, call clear_whoami and tell me the route, the pinned version, the role and teams it reported, how many clear_* tools you have, which skills you installed or added to your instructions, and anything I still need to do.
+```
+
+Before you paste it, mint the agent's own key at `<clear-api>/portal`, signed in as the agent's
+user (not your own), and have an admin approve that user. For other agents and frameworks, see
+[Connecting another agent](docs/connect-an-agent.md).
+
+### Install by hand
+
 | You use | Install | You get |
 |---|---|---|
 | Claude Code | [the plugin](#claude-code-plugin-recommended) — two commands | the server **and** the [skills](#skills) |
