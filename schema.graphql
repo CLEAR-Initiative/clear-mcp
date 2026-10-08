@@ -679,6 +679,60 @@ type CommentTag {
 }
 
 """
+What has typically happened before (the Domain Ontology's ImpactPrior),
+computed from CLEAR's history (V4): the Events before this one that
+manifest the same hazard in the same country within the horizon, one
+current figure each for one metric and population group. Computed on
+read from accepted history — nothing to review. Read `numberOfCases`
+beside the figure: a prior resting on three Events is not one resting on
+ninety.
+"""
+type ComputedImpactPrior {
+  """The median of the historical figures."""
+  centralValue: Float!
+
+  """The Event's country (level-0 location)."""
+  countryLocationId: String!
+
+  """The Estimates it rests on, one per Event."""
+  estimateIds: [String!]!
+
+  """The historical Events it rests on."""
+  eventIds: [String!]!
+
+  """GLIDE code; one of the Event's `types`."""
+  hazardType: String!
+
+  """How far back history was taken, in years."""
+  horizonYears: Int!
+
+  """True below three cases: a starting point, not a basis."""
+  lowConfidence: Boolean!
+
+  """The smallest historical figure."""
+  lowerBound: Float!
+
+  """Version of the method that computed it."""
+  methodVersion: String!
+
+  """One of the Domain Ontology's seven metric types."""
+  metric: String!
+
+  """How many historical Events it rests on."""
+  numberOfCases: Int!
+  populationGroup: String
+
+  """
+  The figures' unit (lower-cased), or null when they state none.
+  Figures in different units are never summarised together.
+  """
+  unit: String
+
+  """The largest historical figure."""
+  upperBound: Float!
+}
+
+"""
 One CLEAR Agent Thread, stored as the record of what the Agent told its
 owner: the user's turns, the Answers, and the tools and Source documents
 each Answer drew on. Readable by its owner and, read-only, by platform
@@ -1446,6 +1500,107 @@ input EntityStatsInput {
   to: DateTime
 }
 
+"""
+A figure for one metric on an Event (the Domain Ontology's Estimate),
+with its method, its uncertainty and both timestamps. Never overwritten: a
+correction is a new Estimate whose `supersedes` is the one it replaces.
+Where bounds are present, `lowerBound ≤ value ≤ upperBound`.
+"""
+type Estimate {
+  attribution: EstimateAttribution!
+  createdAt: DateTime!
+
+  """Who recorded it; null for system-written Estimates."""
+  createdBy: User
+
+  """
+  The Domain Ontology version whose definitions the figure was made
+  under, e.g. `0.3.0`.
+  """
+  definitionVersion: String!
+
+  """When the figure was made (transaction time)."""
+  estimatedAt: DateTime!
+  event: Event!
+  eventId: String!
+  id: String!
+
+  """True for verified figures used to score earlier Estimates."""
+  isGroundTruth: Boolean!
+  lowerBound: Float
+  method: EstimateMethod!
+  metric: EstimateMetric!
+
+  """
+  IDP, refugee, returnee, host community or non-displaced affected;
+  null when the figure covers everyone.
+  """
+  populationGroup: String
+
+  """The Signal the figure was read from, if any."""
+  sourceSignalId: String
+  sourceUrl: String
+
+  """The Estimate that corrects this one; null while it is current."""
+  supersededBy: Estimate
+
+  """The Estimate this one corrects."""
+  supersedes: Estimate
+  supersedesId: String
+
+  """e.g. `people`, `households`."""
+  unit: String
+  upperBound: Float
+
+  """The date the figure describes (valid time)."""
+  validFor: DateTime!
+  value: Float!
+}
+
+"""
+Whether a figure counts need caused by the Event, need that existed
+beforehand, or both.
+"""
+enum EstimateAttribution {
+  combined
+  event_caused
+  pre_existing
+}
+
+"""
+How a figure was arrived at (the Domain Ontology's Estimate methods).
+`not_documented` when the method is unknown, e.g. figures backfilled from
+the pipeline's Event fields.
+"""
+enum EstimateMethod {
+  exposure_model
+  field_staff_judgement
+  formal_assessment
+  government_figure
+  media_report
+  model_inference
+  not_documented
+  partner_or_cluster_figure
+  prior_caseload_analogue
+  rapid_assessment
+  registration
+}
+
+"""
+Which of the seven distinct figures an Estimate is (the Domain
+Ontology's Metric types). The sector routinely conflates them; keeping
+them apart is the point.
+"""
+enum EstimateMetric {
+  households_affected
+  people_affected
+  people_displaced_cumulative
+  people_displaced_new
+  people_in_need
+  people_reached
+  people_targeted
+}
+
 """An event grouping related signals into a coherent narrative."""
 type Event {
   """Alerts created from this event."""
@@ -1464,6 +1619,14 @@ type Event {
 
   """User comments on this event."""
   comments: [UserComment!]!
+
+  """
+  ImpactPriors computed from CLEAR's history (V4), one per hazard the
+  Event manifests × metric × population group with any history, most
+  evidence first. Follows the Event's visibility. `horizonYears`
+  (default 10, at most 50) is how far back history is taken.
+  """
+  computedImpactPriors(horizonYears: Int = 10): [ComputedImpactPrior!]!
   description: String
 
   """LLM-generated signal descriptions as JSON."""
@@ -1481,6 +1644,14 @@ type Event {
 
   """Escalations by users."""
   escalations: [EventEscalation!]!
+
+  """
+  Figures for this Event, newest first (by `estimatedAt`). Follows the
+  Event's visibility: any authenticated content reader. By default the
+  whole history, superseded Estimates included; `current: true` keeps
+  only those not yet superseded.
+  """
+  estimates(current: Boolean = false, metric: EstimateMetric): [Estimate!]!
 
   """User feedback on this event."""
   feedbacks: [UserFeedback!]!
@@ -2940,7 +3111,8 @@ type Mutation {
   Event that already carries the same URL, else a new historical Event
   dated to the incident. A Signal with the same URL already in CLEAR is
   reused, not duplicated. Historical Events never alert: their newest
-  Signal is the incident's date. The returned case carries
+  Signal is the incident's date. The case's figures become Estimates on
+  that Event (`media_report`, `event_caused`). The returned case carries
   `resultSignalId` and `resultEventId`.
   
   Rejecting keeps the case, so its URL is never proposed again for that
@@ -5527,7 +5699,17 @@ input UpdateEventInput {
   description: String
   descriptionSignals: JSON
   destinationId: String
+
+  """
+  ISO-8601. Only ever moves earlier: a value later than the stored one is
+  ignored.
+  """
   firstSignalCreatedAt: String
+
+  """
+  ISO-8601. Only ever moves later: a value earlier than the stored one is
+  ignored, so an out-of-order signal can't pull it back.
+  """
   lastSignalCreatedAt: String
   locationId: String
   originId: String
